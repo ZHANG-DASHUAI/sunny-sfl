@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#dfeefa">
+  <meta name="description" content="按心情抽一首歌，也可以从歌单里慢慢挑。">
+  <title>心情点歌小盒子</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="theme-sunny">
+  <div class="theme-bg" aria-hidden="true">
+    <div class="sunny-bg-elements">
+      <span class="sunny-sun"></span>
+      <span class="sunny-window-light light-one"></span>
+      <span class="sunny-cloud cloud-one"></span>
+      <span class="sunny-cloud cloud-two"></span>
+      <span class="sunny-cloud cloud-three"></span>
+      <span class="sunny-cloud cloud-four"></span>
+      <span class="sunny-cloud cloud-five"></span>
+      <span class="sunny-plane plane-one">➤</span>
+      <span class="sunny-particle particle-1"></span>
+      <span class="sunny-particle particle-2"></span>
+      <span class="sunny-particle particle-3"></span>
+      <span class="sunny-particle particle-4"></span>
+      <span class="sunny-particle particle-5"></span>
+      <span class="sunny-particle particle-6"></span>
+      <span class="sunny-particle particle-7"></span>
+      <span class="sunny-particle particle-8"></span>
+      <span class="sunny-particle particle-9"></span>
+      <span class="sunny-particle particle-10"></span>
+      <span class="sunny-particle particle-11"></span>
+      <span class="sunny-particle particle-12"></span>
+    </div>
+    <div class="maple-bg-elements">
+      <span class="maple-leaf leaf-1">◆</span>
+      <span class="maple-leaf leaf-2">◆</span>
+      <span class="maple-leaf leaf-3">◆</span>
+      <span class="maple-leaf leaf-4">◆</span>
+      <span class="maple-leaf leaf-5">◆</span>
+      <span class="maple-leaf leaf-6">◆</span>
+      <span class="maple-leaf leaf-7">◆</span>
+      <span class="maple-leaf leaf-8">◆</span>
+      <span class="maple-leaf leaf-9">◆</span>
+      <span class="maple-leaf leaf-10">◆</span>
+      <span class="maple-leaf leaf-11">◆</span>
+      <span class="maple-leaf leaf-12">◆</span>
+      <span class="maple-leaf leaf-13">◆</span>
+      <span class="maple-leaf leaf-14">◆</span>
+      <span class="maple-leaf leaf-15">◆</span>
+      <span class="maple-leaf leaf-16">◆</span>
+      <span class="maple-leaf leaf-17">◆</span>
+      <span class="maple-leaf leaf-18">◆</span>
+      <span class="maple-particle maple-particle-1"></span>
+      <span class="maple-particle maple-particle-2"></span>
+      <span class="maple-particle maple-particle-3"></span>
+      <span class="maple-particle maple-particle-4"></span>
+      <span class="maple-particle maple-particle-5"></span>
+      <span class="maple-particle maple-particle-6"></span>
+      <span class="maple-particle maple-particle-7"></span>
+      <span class="maple-particle maple-particle-8"></span>
+      <span class="maple-note maple-note-1"></span>
+      <span class="maple-note maple-note-2"></span>
+    </div>
+  </div>
+
+  <main class="app">
+    <nav class="top-nav" aria-label="页面导航">
+      <button class="nav-button is-active" type="button" data-view="draw">心情盒子</button>
+      <button class="nav-button" type="button" data-view="catalog">音乐盒</button>
+      <button class="nav-button" id="openMessageButton" type="button">小纸条</button>
+      <button class="nav-button theme-button" id="themeButton" type="button">
+        <span id="themeButtonText">晴天</span><i aria-hidden="true">↻</i>
+      </button>
+    </nav>
+
+    <p class="theme-hint" id="themeHint">今天适合一点点阳光。</p>
+
+    <section class="view is-active" id="drawView">
+      <header class="hero">
+        <p class="eyebrow">MOOD MUSIC BOX</p>
+        <h1>今天想打开哪一种心情？</h1>
+        <p>选一个心情，让歌替今天轻轻说几句。</p>
+      </header>
+
+      <section class="music-box" aria-label="心情点歌小盒子">
+        <div class="box-top">
+          <span><i class="status-dot"></i>READY</span>
+          <span>PLAY SOMETHING NICE</span>
+        </div>
+
+        <div class="record-scene" aria-hidden="true">
+          <div class="record" id="record"><div class="record-label">MOOD<br>BOX</div></div>
+          <div class="tonearm" id="tonearm"></div>
+          <div class="paper-slip">今日歌单<br><b>随机掉落</b></div>
+        </div>
+
+        <div class="mood-panel" id="moodPanel">
+          <p class="section-label">CHOOSE A MOOD</p>
+          <div class="mood-grid">
+            <button class="mood-button" type="button" data-mood="放空"><span>☁</span>想放空一下</button>
+            <button class="mood-button" type="button" data-mood="emo"><span>☂</span>有点 emo</button>
+            <button class="mood-button" type="button" data-mood="甜一点"><span>◌</span>想听甜一点</button>
+            <button class="mood-button" type="button" data-mood="陪伴"><span>☕</span>想被安静陪着</button>
+            <button class="mood-button" type="button" data-mood="回忆"><span>⌛</span>想回到从前</button>
+            <button class="mood-button primary-soft" type="button" data-mood="随机"><span>✦</span>随机抽一首</button>
+          </div>
+        </div>
+
+        <div class="loading-card" id="loadingCard" hidden aria-live="polite">
+          <div class="loading-bars" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+          <p>正在翻找一首适合今天的歌……</p>
+        </div>
+
+        <article class="result-card" id="resultCard" hidden aria-live="polite">
+          <button class="result-back-button" id="resultBackButton" type="button">← 换个心情</button>
+          <div class="result-heading">
+            <span class="result-kicker">今日抽到</span>
+            <div class="tag-row" id="resultTags"></div>
+          </div>
+          <h2 id="songTitle">晴天</h2>
+          <p class="artist" id="songArtist">周杰伦</p>
+          <p class="recommendation" id="songMessage"></p>
+
+          <div class="mode-buttons">
+            <button class="primary-button" id="openListenButton" type="button">静听</button>
+            <button class="secondary-button" id="openSingButton" type="button">轻唱</button>
+          </div>
+          <div class="card-actions">
+            <button class="text-button" id="cardQqButton" type="button">去 QQ 音乐听原曲</button>
+            <button class="text-button" id="againButton" type="button">再抽一首</button>
+          </div>
+        </article>
+      </section>
+
+      <button class="secret-button" id="secretButton" type="button"><span>✦</span> 偷偷放一首</button>
+    </section>
+
+    <section class="view" id="catalogView" hidden>
+      <header class="catalog-header">
+        <p class="eyebrow">LYRICS & SONGS</p>
+        <h1>想听哪一首？</h1>
+        <p>不想抽的话，也可以自己慢慢选。</p>
+      </header>
+
+      <section class="catalog-card">
+        <button class="lyrics-helper-entry" id="openLyricsHelperButton" type="button">
+          <span>♫</span>
+          <span><strong>歌词小助手</strong><small>粘贴普通歌词，自动对上大概进度</small></span>
+        </button>
+        <label class="search-box">
+          <span aria-hidden="true">⌕</span>
+          <input id="songSearch" type="search" placeholder="搜歌名，比如：晴天、夜曲、彩虹" autocomplete="off">
+        </label>
+        <div class="filter-row" id="filterRow" aria-label="按心情筛选">
+          <button class="filter-button is-active" type="button" data-filter="全部">全部</button>
+          <button class="filter-button" type="button" data-filter="放空">放空</button>
+          <button class="filter-button" type="button" data-filter="emo">emo</button>
+          <button class="filter-button" type="button" data-filter="甜一点">甜</button>
+          <button class="filter-button" type="button" data-filter="陪伴">陪伴</button>
+          <button class="filter-button" type="button" data-filter="回忆">回忆</button>
+        </div>
+        <div class="song-list" id="songList"></div>
+        <p class="empty-state" id="emptyState" hidden>没找到这首，要不要换个关键词试试？</p>
+      </section>
+    </section>
+  </main>
+
+  <section class="mode-layer" id="listenLayer" hidden aria-label="静听模式">
+    <div class="mode-card">
+      <button class="close-icon" type="button" data-close-mode aria-label="关闭">×</button>
+      <p class="mode-kicker">LISTEN MODE</p>
+      <h2>安静听这一首</h2>
+      <p class="mode-subtitle">不用想太多，听完这几分钟就好。</p>
+      <div class="mode-song-head">
+        <div>
+          <h3 id="listenTitle"></h3>
+          <p id="listenArtist"></p>
+        </div>
+        <div class="tag-row" id="listenTags"></div>
+      </div>
+      <p class="mode-message" id="listenMessage"></p>
+      <div class="listen-lyrics" id="listenLyricsViewport">
+        <div class="listen-lyrics-list" id="listenLyricsList"></div>
+      </div>
+      <p class="audio-status" id="audioStatus" aria-live="polite"></p>
+      <label class="play-mode-control">
+        <span>听完以后</span>
+        <select id="listenPlayMode" aria-label="播放模式">
+          <option value="sequence">顺序播放</option>
+          <option value="shuffle">随机播放</option>
+          <option value="repeat-one">单曲循环</option>
+        </select>
+      </label>
+      <div class="stack-actions">
+        <button class="primary-button" id="quietListenBtn" type="button">静听这一版</button>
+        <button class="secondary-button" id="listenQqButton" type="button">去 QQ 音乐听原曲</button>
+      </div>
+      <div class="inline-actions">
+        <button class="text-button" id="listenChangeButton" type="button">换一首</button>
+        <button class="text-button" type="button" data-close-mode>关闭</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="mode-layer" id="singLayer" hidden aria-label="轻唱模式">
+    <div class="mode-card sing-card">
+      <button class="close-icon" type="button" data-close-sing aria-label="退出轻唱模式">×</button>
+      <p class="mode-kicker">SOFT SING MODE</p>
+      <h2>轻轻唱这一首</h2>
+      <h3 class="sing-song-title" id="singTitle"></h3>
+      <p class="mode-subtitle">不用唱得多好听，开心就好。</p>
+
+      <p class="sing-tip" id="singTip">不用唱完整，喜欢哪句就唱哪句。</p>
+      <div class="sing-atmosphere" aria-label="轻唱氛围">
+        <button class="sing-atmosphere-button is-active" type="button" data-sing-tip="慢慢唱，不用赶。">慢慢唱</button>
+        <button class="sing-atmosphere-button" type="button" data-sing-tip="唱到喜欢的那一句就好。">只唱喜欢的几句</button>
+        <button class="sing-atmosphere-button" type="button" data-sing-tip="跟着感觉走，跑调也没关系。">跟着感觉唱</button>
+        <button class="sing-atmosphere-button" type="button" data-sing-tip="今天不逞强，轻轻唱完就很好。">今天不逞强</button>
+      </div>
+
+      <div class="sing-source-switch" role="group" aria-label="陪唱音源">
+        <button class="sing-source-button is-active" type="button" data-sing-source="original">原声陪唱</button>
+        <button class="sing-source-button" type="button" data-sing-source="instrumental">轻伴唱</button>
+      </div>
+      <p class="sing-source-status" id="singSourceStatus">跟着这一版轻轻唱。</p>
+
+      <div class="lyrics-viewport" id="lyricsViewport">
+        <div class="lyrics-list" id="lyricsList"></div>
+      </div>
+      <p class="audio-status" id="singAudioStatus" aria-live="polite"></p>
+      <label class="play-mode-control">
+        <span>听完以后</span>
+        <select id="singPlayMode" aria-label="播放模式">
+          <option value="sequence">顺序播放</option>
+          <option value="shuffle">随机播放</option>
+          <option value="repeat-one">单曲循环</option>
+        </select>
+      </label>
+      <div class="sing-actions">
+        <button class="primary-button" id="singPlayButton" type="button">开始轻唱</button>
+        <button class="secondary-button" id="restartButton" type="button">从头来过</button>
+        <button class="text-button" type="button" data-close-sing>退出轻唱</button>
+      </div>
+
+      <section class="recording-box" aria-label="本地录音">
+        <div class="recording-heading">
+          <div>
+            <span>留一小段声音</span>
+            <strong>只录在当前设备里</strong>
+          </div>
+          <i class="recording-dot" id="recordingDot" aria-hidden="true"></i>
+        </div>
+        <p class="recording-privacy">录音只留在你的设备里，不会自动发出去。</p>
+        <p class="recording-status" id="recordingStatus" aria-live="polite"></p>
+        <div class="recording-actions">
+          <button class="secondary-button" id="recordButton" type="button">录一小段</button>
+          <button class="text-button" id="replayRecordingButton" type="button" hidden>回放刚刚唱的</button>
+          <button class="text-button" id="rerecordButton" type="button" hidden>重新录一段</button>
+          <button class="text-button" id="saveRecordingButton" type="button" hidden>保存到本地</button>
+        </div>
+        <audio id="recordedAudio" class="recorded-audio" preload="none"></audio>
+      </section>
+
+      <p class="sing-note">有些歌不一定要唱完整，刚好唱到喜欢的那一句就好。</p>
+    </div>
+  </section>
+
+  <section class="message-layer" id="messageLayer" hidden aria-label="留言小纸条">
+    <form class="message-card" id="messageForm" name="message-box" method="POST" action="/" data-netlify="true">
+      <input type="hidden" name="form-name" value="message-box">
+      <input type="hidden" id="messageSong" name="song" value="">
+      <input type="hidden" id="messageMood" name="mood" value="">
+      <input type="hidden" id="messageTheme" name="theme" value="">
+      <input type="hidden" id="messageTime" name="time" value="">
+
+      <button class="close-icon" id="closeMessageIcon" type="button" aria-label="关闭留言框">×</button>
+      <p class="mode-kicker">A LITTLE NOTE</p>
+      <h2>给今天留一句话</h2>
+      <p class="message-subtitle">不用写很多，一句话也很好。</p>
+      <label class="message-input-wrap">
+        <span>今天的小纸条</span>
+        <textarea id="messageInput" name="message" maxlength="240" placeholder="今天想留下什么呢？"></textarea>
+      </label>
+      <p class="message-privacy">小纸条会送到站点后台；如果网络没接上，会先留在这个浏览器里。</p>
+      <p class="message-status" id="messageStatus" aria-live="polite"></p>
+      <div class="message-actions">
+        <button class="primary-button" type="submit">保存小纸条</button>
+        <button class="text-button" id="closeMessageButton" type="button">关闭</button>
+      </div>
+    </form>
+  </section>
+
+  <section class="lyrics-helper-layer" id="lyricsHelperLayer" hidden aria-label="歌词小助手">
+    <div class="lyrics-helper-card">
+      <button class="close-icon" id="closeLyricsHelperIcon" type="button" aria-label="关闭歌词小助手">×</button>
+      <p class="mode-kicker">LYRICS HELPER</p>
+      <h2>歌词小助手</h2>
+      <p class="lyrics-helper-subtitle">把歌词放进来，我帮你轻轻对上进度。</p>
+
+      <label class="helper-field">
+        <span>选择歌曲</span>
+        <select id="lyricsSongSelect"></select>
+      </label>
+      <label class="helper-field">
+        <span>粘贴普通歌词</span>
+        <textarea id="lyricsInput" placeholder="把歌词粘到这里，每一句可以换一行。"></textarea>
+      </label>
+
+      <div class="helper-primary-actions">
+        <button class="secondary-button" id="organizeLyricsButton" type="button">整理歌词</button>
+        <button class="primary-button" id="startTappingButton" type="button">开始播放并打点</button>
+      </div>
+
+      <p class="lyrics-helper-status" id="lyricsHelperStatus" aria-live="polite">
+        时间不用特别精准，差一点也没关系，有氛围就很好。
+      </p>
+
+      <section class="tap-controls" aria-label="听着打点">
+        <div class="tap-controls-copy">
+          <strong>手动时间节点</strong>
+          <span>听到哪一句，就给哪一句轻轻打个点。</span>
+        </div>
+        <div class="tap-actions">
+          <button class="primary-button" id="markCurrentLineButton" type="button">给这一句打点</button>
+          <button type="button" id="undoTapButton">撤销上一句</button>
+          <button type="button" id="pauseTappingButton">暂停打点</button>
+          <button type="button" id="restartTappingButton">从头打点</button>
+        </div>
+      </section>
+
+      <div class="helper-preview">
+        <div class="helper-preview-head">
+          <span>逐句编辑</span>
+          <small>时间单位：秒</small>
+        </div>
+        <div class="helper-lyrics-list" id="helperLyricsList"></div>
+      </div>
+
+      <div class="helper-save-actions">
+        <button class="primary-button" id="saveLyricsButton" type="button">保存到这首歌</button>
+        <button class="secondary-button" id="exportLyricsButton" type="button">导出时间节点歌词</button>
+        <button class="text-button" id="closeLyricsHelperButton" type="button">关闭</button>
+      </div>
+      <label class="helper-export" id="lyricsExportWrap" hidden>
+        <span>可以复制回 script.js</span>
+        <textarea id="lyricsExportOutput" readonly></textarea>
+        <button class="secondary-button" id="copyLyricsCodeButton" type="button">复制代码</button>
+      </label>
+    </div>
+    <audio id="lyricsHelperAudio" preload="metadata"></audio>
+  </section>
+
+  <aside class="mini-player" id="miniPlayer" hidden aria-label="迷你播放器">
+    <div class="mini-player-copy">
+      <span class="mini-player-label">NOW PLAYING</span>
+      <strong id="miniPlayerTitle">还没有选歌</strong>
+      <span id="miniPlayerStatus">已暂停</span>
+    </div>
+    <button class="mini-player-button" id="miniPlayButton" type="button" aria-label="播放">▶</button>
+    <button class="mini-player-enter" id="miniEnterButton" type="button">进入歌曲</button>
+  </aside>
+
+  <aside class="audio-debug-panel" id="audioDebugPanel" hidden aria-live="polite">
+    <strong>Audio Debug</strong>
+    <pre id="audioDebugContent"></pre>
+  </aside>
+
+  <footer id="bottomNav" class="bottom-nav">不用急着回答什么，今天就先听一首歌吧。</footer>
+  <!-- 全项目唯一的播放器。静听和轻唱共用，不随面板重建。 -->
+  <audio id="audioPlayer" class="global-audio" preload="none"></audio>
+  <script src="script.js"></script>
+</body>
+</html>
