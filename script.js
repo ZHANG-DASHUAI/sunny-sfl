@@ -161,6 +161,7 @@ const lyricsHelperLayer = $("#lyricsHelperLayer");
 const lyricsSongSelect = $("#lyricsSongSelect");
 const lyricsInput = $("#lyricsInput");
 const lyricsHelperStatus = $("#lyricsHelperStatus");
+const lyricsLockStatus = $("#lyricsLockStatus");
 const helperLyricsList = $("#helperLyricsList");
 const lyricsHelperAudio = $("#lyricsHelperAudio");
 const lyricsExportWrap = $("#lyricsExportWrap");
@@ -194,6 +195,7 @@ let helperSyncTimer = null;
 let isManualAdjustingLyrics = false;
 let tappingLineIndex = 0;
 let tapHistory = [];
+let helperIsManualLocked = false;
 let audioContext = null;
 let mediaSourceNode = null;
 let pannerNode = null;
@@ -284,7 +286,13 @@ function loadSavedLyrics() {
       );
       if (!saved || saved.songId !== song.id) return;
       if (Array.isArray(saved.lyricsText)) song.lyricsText = saved.lyricsText;
-      if (Array.isArray(saved.lyricsTimed)) song.lyricsTimed = saved.lyricsTimed;
+      if (Array.isArray(saved.lyricsTimed)) {
+        song.lyricsTimed = saved.lyricsTimed.map((item) => ({
+          time: Number(item.time),
+          text: String(item.text || "")
+        }));
+        song.lyricsMode = saved.mode === "manual" ? "manual" : (song.lyricsMode || "");
+      }
       else if (Array.isArray(saved.lyricsAutoTimed)) song.lyricsTimed = saved.lyricsAutoTimed;
     } catch (error) {
       console.warn(`读取 ${song.title} 的本地歌词失败：`, error);
@@ -965,7 +973,10 @@ function openQqMusic() {
 function getLyricsForCurrentSong() {
   if (!currentSong) return { type: "empty", lines: [] };
   if (Array.isArray(currentSong.lyricsTimed) && currentSong.lyricsTimed.length) {
-    return { type: "timed", lines: currentSong.lyricsTimed };
+    return {
+      type: "timed",
+      lines: [...currentSong.lyricsTimed].sort((a, b) => Number(a.time) - Number(b.time))
+    };
   }
   if (Array.isArray(currentSong.lyricsText) && currentSong.lyricsText.length) {
     return { type: "text", lines: currentSong.lyricsText };
@@ -975,7 +986,9 @@ function getLyricsForCurrentSong() {
 
 function getTimedLyrics(song = currentSong) {
   if (!song) return [];
-  if (song.lyricsTimed.length) return song.lyricsTimed;
+  if (song.lyricsTimed.length) {
+    return [...song.lyricsTimed].sort((a, b) => Number(a.time) - Number(b.time));
+  }
   if (song.lyricsText.length && Number.isFinite(audioPlayer.duration) && audioPlayer.duration > 0) {
     const lineDuration = audioPlayer.duration / song.lyricsText.length;
     return song.lyricsText.map((text, index) => ({
@@ -1432,7 +1445,7 @@ function parseTimeInput(value) {
     const minutes = Number(chineseMatch[1]);
     const seconds = Number(chineseMatch[2]);
     if (!Number.isFinite(minutes) || !Number.isFinite(seconds) || seconds >= 60) return null;
-    return Number((minutes * 60 + seconds).toFixed(2));
+    return minutes * 60 + seconds;
   }
 
   const colonMatch = raw.match(/^(\d+):(\d+(?:\.\d+)?)$/);
@@ -1440,14 +1453,20 @@ function parseTimeInput(value) {
     const minutes = Number(colonMatch[1]);
     const seconds = Number(colonMatch[2]);
     if (!Number.isFinite(minutes) || !Number.isFinite(seconds) || seconds >= 60) return null;
-    return Number((minutes * 60 + seconds).toFixed(2));
+    return minutes * 60 + seconds;
   }
 
   const seconds = Number(raw);
   if (Number.isFinite(seconds) && seconds >= 0) {
-    return Number(seconds.toFixed(2));
+    return seconds;
   }
   return null;
+}
+
+function normalizeLyricTime(seconds) {
+  const value = Number(seconds);
+  if (!Number.isFinite(value) || value < 0) return null;
+  return Math.round(value * 100) / 100;
 }
 
 function formatSecondsToMinute(seconds) {
@@ -1550,33 +1569,61 @@ function keepScrollWhileAdjusting(callback) {
   });
 }
 
-function normalizeHelperTimedLyrics() {
+function collectHelperTimedLyrics({ normalize = false } = {}) {
   return helperLyricsText
     .map((text, index) => {
-      const time = parseTimeInput(
+      const parsedTime = parseTimeInput(
         helperTimedLyrics[index]?.timeInput ?? helperTimedLyrics[index]?.time
       );
+      const time = normalize ? normalizeLyricTime(parsedTime) : parsedTime;
       return {
         time,
-        text: String(text || "").trim()
+        text: String(text || "").trim(),
+        sourceIndex: index
       };
     });
 }
 
-function validHelperTimedLyrics() {
-  return normalizeHelperTimedLyrics()
-    .filter((item) => item.text && Number.isFinite(item.time))
-    .sort((a, b) => a.time - b.time);
+function validHelperTimedLyrics({
+  sorted = false,
+  normalize = false,
+  includeIndex = false
+} = {}) {
+  const valid = collectHelperTimedLyrics({ normalize })
+    .filter((item) => item.text && Number.isFinite(item.time));
+  const ordered = sorted ? [...valid].sort((a, b) => a.time - b.time) : valid;
+  return includeIndex
+    ? ordered
+    : ordered.map(({ time, text }) => ({ time, text }));
+}
+
+function updateLyricsLockStatus() {
+  lyricsLockStatus.textContent = helperIsManualLocked
+    ? "手动时间已锁定，保存后不会自动变化。"
+    : "当前使用：手动时间节点";
 }
 
 function loadHelperSong(songId) {
   const song = songs.find((item) => item.id === songId) || songs[0];
-  helperLyricsText = [...song.lyricsText];
-  if (!helperLyricsText.length && song.lyricsTimed.length) {
-    helperLyricsText = song.lyricsTimed.map((item) => item.text);
-  }
+  helperIsManualLocked = song.lyricsMode === "manual" || song.lyricsTimed.length > 0;
+  helperLyricsText = song.lyricsText.length
+    ? [...song.lyricsText]
+    : song.lyricsTimed.map((item) => item.text);
+  const usedTimedIndexes = new Set();
   helperTimedLyrics = helperLyricsText.map((text, index) => {
-    const timed = song.lyricsTimed.find((item) => item.text === text) || song.lyricsTimed[index];
+    let timedIndex = -1;
+    if (
+      song.lyricsTimed[index]?.text === text &&
+      !usedTimedIndexes.has(index)
+    ) {
+      timedIndex = index;
+    } else {
+      timedIndex = song.lyricsTimed.findIndex((item, itemIndex) =>
+        !usedTimedIndexes.has(itemIndex) && item.text === text
+      );
+    }
+    if (timedIndex >= 0) usedTimedIndexes.add(timedIndex);
+    const timed = timedIndex >= 0 ? song.lyricsTimed[timedIndex] : null;
     const time = Number.isFinite(timed?.time) ? timed.time : null;
     return { time, timeInput: formatSecondsToMinute(time), text };
   });
@@ -1588,6 +1635,7 @@ function loadHelperSong(songId) {
   lyricsHelperAudio.pause();
   lyricsHelperAudio.removeAttribute("src");
   renderHelperLyrics();
+  updateLyricsLockStatus();
 }
 
 function openLyricsHelper() {
@@ -1647,7 +1695,7 @@ function readHelperDuration(song) {
 }
 
 function syncHelperPreview() {
-  const timedLyrics = validHelperTimedLyrics();
+  const timedLyrics = validHelperTimedLyrics({ sorted: true, includeIndex: true });
   if (!timedLyrics.length) return;
   let nextIndex = -1;
   for (let index = 0; index < timedLyrics.length; index += 1) {
@@ -1658,8 +1706,7 @@ function syncHelperPreview() {
   const oldRow = helperLyricsList.querySelector(".helper-lyric-row.is-active");
   if (oldRow) oldRow.classList.remove("is-active");
   helperActiveIndex = nextIndex;
-  const activeText = timedLyrics[nextIndex]?.text;
-  const sourceIndex = helperLyricsText.findIndex((text) => text === activeText);
+  const sourceIndex = timedLyrics[nextIndex]?.sourceIndex;
   const row = helperLyricsList.querySelector(`[data-helper-index="${sourceIndex}"]`);
   if (row) {
     row.classList.add("is-active");
@@ -1694,17 +1741,22 @@ function saveHelperLyrics() {
     lyricsHelperStatus.textContent = "先放一点歌词进来再保存。";
     return;
   }
+  const timedLyrics = validHelperTimedLyrics({ normalize: true });
   song.lyricsText = [...helperLyricsText];
-  song.lyricsTimed = validHelperTimedLyrics();
+  song.lyricsTimed = timedLyrics;
+  song.lyricsMode = "manual";
   const payload = {
     songId: song.id,
+    mode: "manual",
     lyricsText: song.lyricsText,
     lyricsTimed: song.lyricsTimed,
     updatedAt: new Date().toLocaleString("zh-CN", { hour12: false })
   };
   try {
     localStorage.setItem(`${LYRICS_STORAGE_PREFIX}${song.id}`, JSON.stringify(payload));
-    lyricsHelperStatus.textContent = "歌词已经放进这首歌里啦。";
+    helperIsManualLocked = true;
+    updateLyricsLockStatus();
+    lyricsHelperStatus.textContent = "歌词已经放进这首歌里啦，手动时间不会自动变化。";
   } catch (error) {
     lyricsHelperStatus.textContent = "这次没能保存到浏览器，请先导出歌词代码。";
   }
@@ -1718,17 +1770,53 @@ function saveHelperLyrics() {
 }
 
 function exportHelperLyrics() {
-  const timedLyrics = validHelperTimedLyrics();
+  const timedLyrics = validHelperTimedLyrics({ sorted: true, normalize: true });
   if (!timedLyrics.length) {
     lyricsHelperStatus.textContent = "还没有可导出的时间节点。";
     return;
   }
   const timedLines = timedLyrics
-    .map((item) => `  { time: ${Number(item.time.toFixed(2))}, text: ${JSON.stringify(item.text)} }`)
+    .map((item) => `  { time: ${item.time}, text: ${JSON.stringify(item.text)} }`)
     .join(",\n");
   lyricsExportOutput.value = `lyricsTimed: [\n${timedLines}\n]`;
   lyricsExportWrap.hidden = false;
   lyricsHelperStatus.textContent = "时间节点歌词已经生成，可以复制回 script.js。";
+}
+
+async function autoMatchHelperLyrics() {
+  const song = selectedHelperSong();
+  if (!song || !helperLyricsText.length) {
+    lyricsHelperStatus.textContent = "先整理歌词，再自动匹配进度。";
+    return;
+  }
+  if (
+    helperIsManualLocked &&
+    !window.confirm("自动匹配会覆盖当前手动时间，确定继续吗？")
+  ) {
+    lyricsHelperStatus.textContent = "已经保留当前手动时间。";
+    return;
+  }
+
+  try {
+    const duration = await readHelperDuration(song);
+    const lineDuration = duration / helperLyricsText.length;
+    keepScrollWhileAdjusting(() => {
+      helperTimedLyrics = helperLyricsText.map((text, index) => {
+        const time = index * lineDuration;
+        return {
+          time,
+          timeInput: formatSecondsToMinute(time),
+          text
+        };
+      });
+      helperIsManualLocked = false;
+      updateLyricsLockStatus();
+      renderHelperLyrics();
+    });
+    lyricsHelperStatus.textContent = "已经自动匹配进度，确认后再保存到这首歌。";
+  } catch (error) {
+    lyricsHelperStatus.textContent = "音频时长还没读出来，先点播放并打点试试。";
+  }
 }
 
 function markCurrentHelperLine() {
@@ -1746,7 +1834,7 @@ function markCurrentHelperLine() {
     previousTime: helperTimedLyrics[index]?.time ?? null,
     previousTimeInput: helperTimedLyrics[index]?.timeInput ?? ""
   });
-  const tappedTime = Number(lyricsHelperAudio.currentTime.toFixed(2));
+  const tappedTime = lyricsHelperAudio.currentTime;
   helperTimedLyrics[index] = {
     time: tappedTime,
     timeInput: formatSecondsToMinute(tappedTime),
@@ -1785,7 +1873,16 @@ function pauseTapping() {
 }
 
 function restartTapping() {
+  if (
+    helperIsManualLocked &&
+    !window.confirm("从头打点会清空当前手动时间，确定继续吗？")
+  ) {
+    lyricsHelperStatus.textContent = "已经保留当前手动时间。";
+    return;
+  }
   helperTimedLyrics = helperLyricsText.map((text) => ({ time: null, timeInput: "", text }));
+  helperIsManualLocked = false;
+  updateLyricsLockStatus();
   tappingLineIndex = 0;
   tapHistory = [];
   helperActiveIndex = -1;
@@ -1809,23 +1906,50 @@ lyricsHelperLayer.addEventListener("click", (event) => {
 });
 lyricsSongSelect.addEventListener("change", () => loadHelperSong(lyricsSongSelect.value));
 $("#organizeLyricsButton").addEventListener("click", () => {
-  helperLyricsText = organizeLyrics(lyricsInput.value);
-  helperTimedLyrics = helperLyricsText.map((text) => ({ time: null, timeInput: "", text }));
-  tappingLineIndex = 0;
-  tapHistory = [];
-  lyricsInput.value = helperLyricsText.join("\n");
-  renderHelperLyrics();
+  const nextLyricsText = organizeLyrics(lyricsInput.value);
+  const oldTimedLyrics = helperTimedLyrics.map((item, index) => ({
+    ...item,
+    text: helperLyricsText[index]
+  }));
+  const usedIndexes = new Set();
+  const nextTimedLyrics = nextLyricsText.map((text, index) => {
+    let sourceIndex = -1;
+    if (oldTimedLyrics[index]?.text === text && !usedIndexes.has(index)) {
+      sourceIndex = index;
+    } else {
+      sourceIndex = oldTimedLyrics.findIndex((item, oldIndex) =>
+        !usedIndexes.has(oldIndex) && item.text === text
+      );
+    }
+    if (sourceIndex < 0) return { time: null, timeInput: "", text };
+    usedIndexes.add(sourceIndex);
+    return { ...oldTimedLyrics[sourceIndex], text };
+  });
+
+  keepScrollWhileAdjusting(() => {
+    helperLyricsText = nextLyricsText;
+    helperTimedLyrics = nextTimedLyrics;
+    tappingLineIndex = Math.min(tappingLineIndex, helperLyricsText.length);
+    tapHistory = [];
+    lyricsInput.value = helperLyricsText.join("\n");
+    renderHelperLyrics();
+  });
   lyricsHelperStatus.textContent = helperLyricsText.length
-    ? `已经整理成 ${helperLyricsText.length} 句歌词。`
+    ? `已经整理成 ${helperLyricsText.length} 句歌词，已有手动时间会尽量保留。`
     : "还没有读到歌词，可以先粘贴一点。";
 });
+$("#autoMatchLyricsButton").addEventListener("click", autoMatchHelperLyrics);
 $("#startTappingButton").addEventListener("click", () => startTappingPlayback(false));
 $("#markCurrentLineButton").addEventListener("click", markCurrentHelperLine);
 $("#undoTapButton").addEventListener("click", undoLastTap);
 $("#pauseTappingButton").addEventListener("click", pauseTapping);
 $("#restartTappingButton").addEventListener("click", restartTapping);
-$("#saveLyricsButton").addEventListener("click", saveHelperLyrics);
-$("#exportLyricsButton").addEventListener("click", exportHelperLyrics);
+$("#saveLyricsButton").addEventListener("click", () => {
+  keepScrollWhileAdjusting(saveHelperLyrics);
+});
+$("#exportLyricsButton").addEventListener("click", () => {
+  keepScrollWhileAdjusting(exportHelperLyrics);
+});
 $("#copyLyricsCodeButton").addEventListener("click", async () => {
   try {
     await navigator.clipboard.writeText(lyricsExportOutput.value);
@@ -1850,7 +1974,7 @@ helperLyricsList.addEventListener("click", (event) => {
       return;
     }
     keepScrollWhileAdjusting(() => {
-      item.time = Number(Math.max(0, currentTime + shift).toFixed(2));
+      item.time = Math.max(0, currentTime + shift);
       item.timeInput = formatSecondsToMinute(item.time);
       renderHelperLyrics();
     });
