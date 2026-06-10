@@ -238,11 +238,8 @@ try {
   singVolume = 0.18;
 }
 
-try {
-  isSurroundEnabled = localStorage.getItem(SURROUND_STORAGE_KEY) === "true";
-} catch (error) {
-  isSurroundEnabled = false;
-}
+// 环绕功能暂时保持关闭，不读取旧设置，优先保证手机端普通播放稳定。
+isSurroundEnabled = false;
 
 function renderTags(container, moods) {
   container.innerHTML = moods.map((mood) => `<span class="tag">${mood}</span>`).join("");
@@ -485,23 +482,7 @@ function startSurroundMotion() {
 }
 
 async function activateSavedSurround() {
-  if (!isSurroundEnabled) return true;
-  if (!setupSurroundAudio()) {
-    isSurroundEnabled = false;
-    saveSurroundPreference();
-    updateSurroundUi();
-    return false;
-  }
-
-  try {
-    if (audioContext.state === "suspended") await audioContext.resume();
-    startSurroundMotion();
-    return true;
-  } catch (error) {
-    console.error("沉浸环绕启动失败：", error);
-    setSurroundStatus("当前音频暂时不能做环绕处理，正常听也很好。");
-    return false;
-  }
+  return true;
 }
 
 async function toggleSurround() {
@@ -519,6 +500,9 @@ async function toggleSurround() {
       return;
     }
     if (!setupSurroundAudio()) {
+      isSurroundEnabled = false;
+      stopSurroundMotion();
+      setSurroundStatus("这个浏览器暂时不支持环绕，已保持普通播放。");
       return;
     }
     try {
@@ -529,7 +513,8 @@ async function toggleSurround() {
     } catch (error) {
       console.error("沉浸环绕启动失败：", error);
       isSurroundEnabled = false;
-      setSurroundStatus("当前音频暂时不能做环绕处理，正常听也很好。");
+      stopSurroundMotion();
+      setSurroundStatus("这个浏览器暂时不支持环绕，已保持普通播放。");
     }
   }
 
@@ -625,7 +610,7 @@ function initializeAudioDebugPanel() {
 // 静听和轻唱共用这一个播放函数及全局 audioPlayer。
 async function playCurrentSong() {
   if (!currentSong) {
-    setAudioStatus("还没有选择歌曲");
+    setAudioStatus("先选一首歌吧。");
     return;
   }
 
@@ -636,9 +621,8 @@ async function playCurrentSong() {
   }
 
   const audioUrl = resolveAudioUrl(src);
-  console.log("准备播放歌曲：", currentSong.title);
-  console.log("歌曲音频地址：", src);
-  console.log("实际播放地址：", audioUrl);
+  console.log("准备播放：", currentSong.title);
+  console.log("音频地址：", audioUrl);
 
   applyPlaybackVolume();
   console.log("muted:", audioPlayer.muted);
@@ -650,7 +634,6 @@ async function playCurrentSong() {
 
   if (audioPlayer.src !== audioUrl) {
     audioPlayer.pause();
-    audioPlayer.crossOrigin = "anonymous";
     audioPlayer.src = audioUrl;
     audioPlayer.load();
     loadedSongId = currentSong.id;
@@ -661,13 +644,11 @@ async function playCurrentSong() {
 
   try {
     setAudioStatus("音频加载中……");
-    await activateSavedSurround();
     await audioPlayer.play();
   } catch (error) {
-    console.error("play() 播放失败：", error);
-    setAudioStatus("这首歌准备好了，再轻点一下就能听。");
+    console.error("播放失败：", error);
+    setAudioStatus("播放被拦截了，再轻点一下试试。");
     updatePlayButtonText(false);
-    throw error;
   }
 }
 
@@ -1091,7 +1072,6 @@ async function selectSingSource(mode, force = false) {
   const audioUrl = resolveAudioUrl(src);
   try {
     if (src && audioPlayer.src !== audioUrl) {
-      audioPlayer.crossOrigin = "anonymous";
       audioPlayer.src = audioUrl;
       audioPlayer.load();
       loadedSongId = currentSong.id;
@@ -1860,9 +1840,7 @@ $("#cardQqButton").addEventListener("click", openQqMusic);
 $("#listenQqButton").addEventListener("click", openQqMusic);
 $("#quietListenBtn").addEventListener("click", togglePlayback);
 $("#singPlayButton").addEventListener("click", togglePlayback);
-surroundToggleButtons.forEach((button) => {
-  button.addEventListener("click", toggleSurround);
-});
+// 环绕入口暂时隐藏，不绑定交互，避免任何 Web Audio 初始化影响普通播放。
 $("#listenPlayMode").addEventListener("change", (event) => setPlayMode(event.target.value));
 $("#singPlayMode").addEventListener("change", (event) => setPlayMode(event.target.value));
 

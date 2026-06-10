@@ -184,7 +184,7 @@
         <div class="listen-lyrics-list" id="listenLyricsList"></div>
       </div>
       <p class="audio-status" id="audioStatus" aria-live="polite"></p>
-      <div class="surround-control">
+      <div class="surround-control" hidden>
         <div>
           <strong>沉浸环绕</strong>
           <span>戴上耳机，声音会轻轻绕一点。</span>
@@ -251,7 +251,7 @@
         <div class="lyrics-list" id="lyricsList"></div>
       </div>
       <p class="audio-status" id="singAudioStatus" aria-live="polite"></p>
-      <div class="surround-control">
+      <div class="surround-control" hidden>
         <div>
           <strong>沉浸环绕</strong>
           <span>戴上耳机，声音会轻轻绕一点。</span>
@@ -402,7 +402,7 @@
 
   <footer id="bottomNav" class="bottom-nav">不用急着回答什么，今天就先听一首歌吧。</footer>
   <!-- 全项目唯一的播放器。静听和轻唱共用，不随面板重建。 -->
-  <audio id="audioPlayer" class="global-audio" crossorigin="anonymous" preload="none"></audio>
+  <audio id="audioPlayer" class="global-audio" preload="none"></audio>
   <script src="script.js"></script>
 </body>
 </html>

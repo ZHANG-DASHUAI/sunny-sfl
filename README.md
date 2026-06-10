@@ -293,17 +293,18 @@ instrumentalAudio: AUDIO_BASE_URL + "qing-tian-instrumental.mp3"
 
 ### 沉浸环绕
 
-静听模式和轻唱模式都提供“沉浸环绕”开关，推荐戴耳机体验：
+> 紧急稳定性说明：沉浸环绕入口目前暂时隐藏并默认关闭，页面不会读取旧的开启状态，也不会在播放时初始化 Web Audio API。当前版本优先保证微信和手机浏览器中的普通音频稳定播放。
+
+环绕功能的代码仍保留，后续确认目标手机浏览器兼容后可以重新开放。设计说明如下：
 
 - 使用浏览器 Web Audio API 的 `MediaElementAudioSourceNode`、`StereoPannerNode` 和 `GainNode`。
 - 声音只会在左右声道之间缓慢、轻微地流动，不会额外放大音量。
 - 这是轻量的氛围效果，不是真正的专业空间音频。
-- 开关状态保存在 `localStorage` 的 `musicBoxSurroundEnabled`。
-- 页面加载时不会自动创建或启动 `AudioContext`，只有用户点击播放或环绕开关后才会初始化。
+- 页面加载和普通播放都不会创建或启动 `AudioContext`。
 - 部分微信内置浏览器可能不支持 Web Audio API 或立体声声像控制；不支持时会保持普通播放。
 - 环绕效果不修改 `audioPlayer.volume`，因此不会影响静听音量、原声陪唱 18% 设置、轻伴唱音量、歌词高亮或 R2 音频地址。
 
-因为音频放在 Cloudflare R2、网页部署在 Cloudflare Pages，沉浸环绕使用 Web Audio API 时需要 R2 开启 CORS。全局 `audioPlayer` 已设置 `crossorigin="anonymous"`，代码也会在设置每个音频地址前先设置 `audioPlayer.crossOrigin = "anonymous"`。
+因为音频放在 Cloudflare R2、网页部署在 Cloudflare Pages，未来重新启用 Web Audio API 时仍需要 R2 开启 CORS。当前普通播放不设置 `crossorigin`，直接使用原生 `audioPlayer.src` 和 `audioPlayer.play()`。
 
 R2 CORS 示例：
 
@@ -331,6 +332,14 @@ R2 CORS 示例：
 ```
 
 测试阶段可以先把 `AllowedOrigins` 写成 `["*"]`，确认环绕可用后，建议改为自己的 Pages 域名，例如 `https://sunny-sfl.pages.dev`。修改 R2 CORS 后需要等待配置生效，并重新打开页面测试。
+
+手机可以直接打开下面的 R2 音频链接测试：
+
+```text
+https://pub-e03989c8338345c4a57d568c8be819c0.r2.dev/audio/da-ben-zhong.mp3
+```
+
+如果单独链接有声音，说明 R2 音频文件正常；如果网页没有声音，应继续检查网页播放链路。
 
 ### 本地录一小段
 
