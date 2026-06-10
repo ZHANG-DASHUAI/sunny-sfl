@@ -219,11 +219,25 @@
         <button class="sing-atmosphere-button" type="button" data-sing-tip="今天不逞强，轻轻唱完就很好。">今天不逞强</button>
       </div>
 
-      <div class="sing-source-switch" role="group" aria-label="陪唱音源">
-        <button class="sing-source-button is-active" type="button" data-sing-source="original">原声陪唱</button>
+      <section class="sing-accompany-box" aria-label="陪唱方式">
+        <div class="sing-accompany-heading">
+          <strong>陪唱方式</strong>
+          <span>给自己的声音留一点空间。</span>
+        </div>
+        <div class="sing-source-switch" role="group" aria-label="陪唱音源">
+        <button class="sing-source-button is-active" type="button" data-sing-source="vocal">原声陪唱</button>
         <button class="sing-source-button" type="button" data-sing-source="instrumental">轻伴唱</button>
-      </div>
-      <p class="sing-source-status" id="singSourceStatus">跟着这一版轻轻唱。</p>
+        </div>
+        <p class="sing-source-description" id="singSourceDescription">
+          把这一版声音放轻一点，留一点空间给你唱。
+        </p>
+        <label class="sing-volume-control" for="singVolumeSlider">
+          <span>陪唱音量</span>
+          <strong id="singVolumeValue">35%</strong>
+          <input id="singVolumeSlider" type="range" min="0" max="1" step="0.05" value="0.35">
+        </label>
+        <p class="sing-source-status" id="singSourceStatus">原声陪唱已经放轻一点。</p>
+      </section>
 
       <div class="lyrics-viewport" id="lyricsViewport">
         <div class="lyrics-list" id="lyricsList"></div>

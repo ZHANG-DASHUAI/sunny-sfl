@@ -142,6 +142,9 @@ const messageInput = $("#messageInput");
 const messageStatus = $("#messageStatus");
 const singTip = $("#singTip");
 const singSourceStatus = $("#singSourceStatus");
+const singSourceDescription = $("#singSourceDescription");
+const singVolumeSlider = $("#singVolumeSlider");
+const singVolumeValue = $("#singVolumeValue");
 const recordButton = $("#recordButton");
 const recordingStatus = $("#recordingStatus");
 const recordingDot = $("#recordingDot");
@@ -174,7 +177,8 @@ let playMode = "sequence";
 let playHistory = [];
 let currentSource = "mood";
 let wasPlayingBeforeHidden = false;
-let currentAudioVariant = "original";
+let singAccompanyMode = "vocal";
+let singVolume = 0.35;
 let mediaRecorder = null;
 let recordingStream = null;
 let recordingChunks = [];
@@ -194,6 +198,8 @@ const MESSAGE_STORAGE_KEY = "mood-box-pending-messages";
 const LYRICS_STORAGE_PREFIX = "musicBoxLyricsTimed_";
 const LEGACY_LYRICS_STORAGE_PREFIX = "musicBoxLyrics_";
 const PLAY_MODE_STORAGE_KEY = "musicBoxPlayMode";
+const SING_MODE_STORAGE_KEY = "musicBoxSingAccompanyMode";
+const SING_VOLUME_STORAGE_KEY = "musicBoxSingVolume";
 
 try {
   const savedPlayMode = localStorage.getItem(PLAY_MODE_STORAGE_KEY);
@@ -202,6 +208,23 @@ try {
   }
 } catch (error) {
   playMode = "sequence";
+}
+
+try {
+  const savedSingMode = localStorage.getItem(SING_MODE_STORAGE_KEY);
+  if (["vocal", "instrumental"].includes(savedSingMode)) {
+    singAccompanyMode = savedSingMode;
+  }
+  const savedSingVolumeRaw = localStorage.getItem(SING_VOLUME_STORAGE_KEY);
+  if (savedSingVolumeRaw !== null) {
+    const savedSingVolume = Number(savedSingVolumeRaw);
+    if (Number.isFinite(savedSingVolume) && savedSingVolume >= 0 && savedSingVolume <= 1) {
+      singVolume = savedSingVolume;
+    }
+  }
+} catch (error) {
+  singAccompanyMode = "vocal";
+  singVolume = 0.35;
 }
 
 function renderTags(container, moods) {
@@ -343,12 +366,27 @@ function togglePlayMode() {
   setPlayMode(modes[nextIndex]);
 }
 
-function getCurrentAudioSrc() {
+function getSingAudioSrc() {
   if (!currentSong) return "";
-  if (currentAudioVariant === "instrumental" && currentSong.instrumentalAudio) {
-    return currentSong.instrumentalAudio;
+  if (singAccompanyMode === "instrumental") {
+    return currentSong.instrumentalAudio || currentSong.audio || "";
   }
   return currentSong.audio || "";
+}
+
+function getCurrentAudioSrc() {
+  if (!currentSong) return "";
+  return currentMode === "sing" ? getSingAudioSrc() : (currentSong.audio || "");
+}
+
+function getSingPlaybackVolume() {
+  if (singAccompanyMode === "vocal") return singVolume;
+  return currentSong?.instrumentalAudio ? 0.7 : 0.25;
+}
+
+function applyPlaybackVolume() {
+  audioPlayer.muted = false;
+  audioPlayer.volume = currentMode === "sing" ? getSingPlaybackVolume() : 1;
 }
 
 function resolveAudioUrl(src) {
@@ -401,7 +439,6 @@ function releaseAudioTrack() {
   audioPlayer.pause();
   audioPlayer.removeAttribute("src");
   loadedSongId = null;
-  currentAudioVariant = "original";
   clearRecordedClip();
   resetPlaybackUi();
 }
@@ -455,8 +492,7 @@ async function playCurrentSong() {
   console.log("歌曲音频地址：", src);
   console.log("实际播放地址：", audioUrl);
 
-  audioPlayer.muted = false;
-  audioPlayer.volume = 1;
+  applyPlaybackVolume();
   console.log("muted:", audioPlayer.muted);
   console.log("volume:", audioPlayer.volume);
 
@@ -757,9 +793,9 @@ function updateActiveLyric(container, options = {}) {
 
 function openListenMode() {
   if (!currentSong) return;
-  if (audioPlayer.paused) currentAudioVariant = "original";
   singLayer.hidden = true;
   currentMode = "listen";
+  applyPlaybackVolume();
   $("#listenTitle").textContent = currentSong.title;
   $("#listenArtist").textContent = currentSong.artist;
   $("#listenMessage").textContent = currentSong.message;
@@ -775,6 +811,7 @@ function openSingMode() {
   if (!currentSong) return;
   listenLayer.hidden = true;
   currentMode = "sing";
+  applyPlaybackVolume();
   $("#singTitle").textContent = currentSong.title;
   const tips = currentSong.singTips.length ? currentSong.singTips : [
     "轻轻唱，不用被谁听见。"
@@ -788,6 +825,11 @@ function openSingMode() {
   singLayer.hidden = false;
   hideBottomNav();
   document.body.style.overflow = "hidden";
+
+  const targetUrl = resolveAudioUrl(getSingAudioSrc());
+  if (audioPlayer.getAttribute("src") && targetUrl && audioPlayer.src !== targetUrl) {
+    selectSingSource(singAccompanyMode, true);
+  }
 }
 
 function closeModes() {
@@ -806,31 +848,84 @@ function closeModes() {
 
 function updateSingSourceUi() {
   $$(".sing-source-button").forEach((button) => {
-    button.classList.toggle("is-active", button.dataset.singSource === currentAudioVariant);
+    button.classList.toggle("is-active", button.dataset.singSource === singAccompanyMode);
   });
-  if (currentAudioVariant === "instrumental") {
+  const isVocal = singAccompanyMode === "vocal";
+  const volumeControl = singVolumeSlider.closest(".sing-volume-control");
+  const displayedVolume = isVocal ? singVolume : getSingPlaybackVolume();
+  singVolumeSlider.value = String(displayedVolume);
+  singVolumeValue.textContent = `${Math.round(displayedVolume * 100)}%`;
+  singVolumeSlider.disabled = !isVocal;
+  volumeControl?.classList.toggle("is-disabled", !isVocal);
+
+  if (singAccompanyMode === "instrumental") {
+    singSourceDescription.textContent = "如果这首有伴奏版，就只留下旋律陪你。";
     singSourceStatus.textContent = currentSong?.instrumentalAudio
-      ? "伴奏版准备好了，按自己的节奏来。"
-      : "这首还没有伴奏版，先跟着这一版轻轻唱。后面可在 instrumentalAudio 字段添加伴奏。";
+      ? "现在是轻伴唱，旋律会多一点，声音留给你。"
+      : "这首还没有伴奏版，先把陪唱声音放轻一点。";
   } else {
-    singSourceStatus.textContent = "跟着这一版轻轻唱。";
+    singSourceDescription.textContent = "把这一版声音放轻一点，留一点空间给你唱。";
+    singSourceStatus.textContent = "原声陪唱已经放轻一点。";
   }
 }
 
-async function selectSingSource(variant) {
-  if (!currentSong || variant === currentAudioVariant) return;
-  const wasPlaying = !audioPlayer.paused;
-  audioPlayer.pause();
-  currentAudioVariant = variant;
-  updateSingSourceUi();
-
-  if (wasPlaying) {
-    try {
-      await playCurrentSong();
-    } catch (error) {
-      // playCurrentSong 已显示真实播放错误。
+function waitForAudioMetadata() {
+  return new Promise((resolve, reject) => {
+    if (audioPlayer.readyState >= 1) {
+      resolve();
+      return;
     }
-  } else {
+    const cleanup = () => {
+      audioPlayer.removeEventListener("loadedmetadata", handleLoaded);
+      audioPlayer.removeEventListener("error", handleError);
+    };
+    const handleLoaded = () => {
+      cleanup();
+      resolve();
+    };
+    const handleError = () => {
+      cleanup();
+      reject(audioPlayer.error || new Error("audio metadata error"));
+    };
+    audioPlayer.addEventListener("loadedmetadata", handleLoaded, { once: true });
+    audioPlayer.addEventListener("error", handleError, { once: true });
+  });
+}
+
+async function selectSingSource(mode, force = false) {
+  if (!currentSong || (!force && mode === singAccompanyMode)) return;
+  const wasPlaying = !audioPlayer.paused;
+  const previousTime = Number.isFinite(audioPlayer.currentTime) ? audioPlayer.currentTime : 0;
+  audioPlayer.pause();
+  singAccompanyMode = mode;
+  try {
+    localStorage.setItem(SING_MODE_STORAGE_KEY, singAccompanyMode);
+  } catch (error) {
+    // 存储不可用时，当前页面内仍可切换。
+  }
+  updateSingSourceUi();
+  applyPlaybackVolume();
+
+  const src = getSingAudioSrc();
+  const audioUrl = resolveAudioUrl(src);
+  try {
+    if (src && audioPlayer.src !== audioUrl) {
+      audioPlayer.src = audioUrl;
+      audioPlayer.load();
+      loadedSongId = currentSong.id;
+      await waitForAudioMetadata();
+      if (Number.isFinite(audioPlayer.duration) && previousTime < audioPlayer.duration) {
+        audioPlayer.currentTime = previousTime;
+      }
+    }
+    if (wasPlaying) {
+      await playCurrentSong();
+    } else {
+      setAudioStatus("这首歌准备好了，再轻点一下就能听。");
+    }
+  } catch (error) {
+    console.error("切换陪唱音源失败：", error);
+    setAudioStatus("这首歌准备好了，再轻点一下就能听。");
     updatePlayButtonText(false);
     $("#singPlayButton").textContent = "开始轻唱";
   }
@@ -1615,6 +1710,21 @@ $$(".sing-atmosphere-button").forEach((button) => {
 
 $$(".sing-source-button").forEach((button) => {
   button.addEventListener("click", () => selectSingSource(button.dataset.singSource));
+});
+
+singVolumeSlider.addEventListener("input", () => {
+  const nextVolume = Number(singVolumeSlider.value);
+  if (!Number.isFinite(nextVolume)) return;
+  singVolume = Math.min(1, Math.max(0, nextVolume));
+  singVolumeValue.textContent = `${Math.round(singVolume * 100)}%`;
+  try {
+    localStorage.setItem(SING_VOLUME_STORAGE_KEY, String(singVolume));
+  } catch (error) {
+    // 存储不可用时，当前页面内的音量调节仍然有效。
+  }
+  if (currentMode === "sing" && singAccompanyMode === "vocal") {
+    audioPlayer.volume = singVolume;
+  }
 });
 
 recordButton.addEventListener("click", () => {
