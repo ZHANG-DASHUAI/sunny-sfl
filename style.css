@@ -63,7 +63,7 @@ body {
 }
 
 body.immersive-mode {
-  padding-bottom: calc(92px + env(safe-area-inset-bottom));
+  padding-bottom: calc(24px + env(safe-area-inset-bottom));
 }
 
 body::before {
@@ -1470,33 +1470,41 @@ h1 {
   justify-self: center;
 }
 
-.mini-player {
+.floating-player {
   position: fixed;
-  right: 12px;
+  right: 14px;
   bottom: calc(48px + env(safe-area-inset-bottom));
-  left: 12px;
+  left: 14px;
   z-index: 38;
   display: grid;
-  grid-template-columns: minmax(0,1fr) 42px auto;
-  align-items: center;
-  gap: 9px;
-  width: min(calc(100% - 24px), 420px);
+  gap: 8px;
+  width: min(calc(100% - 28px), 430px);
   margin: 0 auto;
-  padding: 9px 10px 9px 13px;
+  padding: 10px 12px;
   border: 1px solid rgba(255,255,255,.76);
-  border-radius: 18px;
+  border-radius: 22px;
   background: color-mix(in srgb, var(--paper-solid) 88%, transparent);
   box-shadow: 0 12px 34px rgba(62,56,52,.18);
   backdrop-filter: blur(9px);
   -webkit-backdrop-filter: blur(9px);
+  transition: opacity .25s ease, transform .25s ease;
 }
 
-.mini-player-copy {
-  display: grid;
+.floating-player.is-hidden {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(120%);
+}
+
+.floating-player-copy {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   min-width: 0;
 }
 
-.mini-player-label {
+.floating-player-label {
+  flex: none;
   color: var(--accent-dark);
   font-family: Georgia, serif;
   font-size: 8px;
@@ -1504,40 +1512,52 @@ h1 {
   letter-spacing: .13em;
 }
 
-.mini-player-copy strong {
+.floating-player-copy strong {
+  flex: 1;
+  min-width: 0;
   overflow: hidden;
-  margin-top: 2px;
   text-overflow: ellipsis;
   white-space: nowrap;
   font-family: "Songti SC", SimSun, serif;
   font-size: 14px;
 }
 
-.mini-player-copy > span:last-child {
-  margin-top: 1px;
+.floating-player-copy > span:last-child {
+  flex: none;
   color: var(--muted);
   font-size: 9px;
+  white-space: nowrap;
 }
 
-.mini-player-button {
+.floating-player-controls {
   display: grid;
-  width: 42px;
-  height: 42px;
-  place-items: center;
-  border-radius: 50%;
-  color: #fff;
-  background: var(--accent-dark);
-  box-shadow: 0 5px 14px color-mix(in srgb, var(--accent) 26%, transparent);
+  grid-template-columns: 42px minmax(72px,1fr) 42px 54px;
+  gap: 7px;
 }
 
-.mini-player-enter {
-  padding: 9px 10px;
+.floating-control-button,
+.floating-mode-button {
+  min-height: 40px;
   border: 1px solid var(--line);
   border-radius: 999px;
   color: var(--accent-dark);
-  background: var(--accent-soft);
-  font-size: 10px;
-  white-space: nowrap;
+  background: color-mix(in srgb, var(--accent-soft) 68%, white);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.floating-control-button[aria-label] {
+  font-family: Georgia, serif;
+  font-size: 25px;
+  line-height: 1;
+}
+
+.floating-control-button.is-primary {
+  border-radius: 999px;
+  color: #fff;
+  background: var(--accent-dark);
+  box-shadow: 0 5px 14px color-mix(in srgb, var(--accent) 26%, transparent);
+  font-size: 12px;
 }
 
 .audio-debug-panel {
@@ -1870,7 +1890,8 @@ textarea:focus-visible {
   .tonearm { right: 39px; }
   .nav-button { padding-right: 4px; padding-left: 4px; font-size: 10px; }
   .top-nav { gap: 3px; }
-  .mini-player-enter { padding-right: 8px; padding-left: 8px; }
+  .floating-player { right: 10px; left: 10px; width: calc(100% - 20px); }
+  .floating-player-controls { grid-template-columns: 40px minmax(66px,1fr) 40px 50px; gap: 5px; }
   .mood-button { font-size: 12px; }
 }
 

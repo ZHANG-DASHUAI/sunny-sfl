@@ -131,10 +131,11 @@ const lyricsList = $("#lyricsList");
 const songSearch = $("#songSearch");
 const songList = $("#songList");
 const emptyState = $("#emptyState");
-const miniPlayer = $("#miniPlayer");
-const miniPlayerTitle = $("#miniPlayerTitle");
-const miniPlayerStatus = $("#miniPlayerStatus");
-const miniPlayButton = $("#miniPlayButton");
+const floatingPlayer = $("#floatingPlayer");
+const floatingPlayerTitle = $("#floatingPlayerTitle");
+const floatingPlayerStatus = $("#floatingPlayerStatus");
+const floatingPlayButton = $("#floatingPlayButton");
+const floatingModeButton = $("#floatingModeButton");
 const messageLayer = $("#messageLayer");
 const messageForm = $("#messageForm");
 const messageInput = $("#messageInput");
@@ -170,6 +171,7 @@ let lyricSyncTimer = null;
 let currentMode = null;
 let loadedSongId = null;
 let playMode = "sequence";
+let playHistory = [];
 let currentSource = "mood";
 let wasPlayingBeforeHidden = false;
 let currentAudioVariant = "original";
@@ -191,6 +193,16 @@ const LYRIC_SYNC_INTERVAL = 200;
 const MESSAGE_STORAGE_KEY = "mood-box-pending-messages";
 const LYRICS_STORAGE_PREFIX = "musicBoxLyricsTimed_";
 const LEGACY_LYRICS_STORAGE_PREFIX = "musicBoxLyrics_";
+const PLAY_MODE_STORAGE_KEY = "musicBoxPlayMode";
+
+try {
+  const savedPlayMode = localStorage.getItem(PLAY_MODE_STORAGE_KEY);
+  if (["sequence", "random", "repeat-one"].includes(savedPlayMode)) {
+    playMode = savedPlayMode;
+  }
+} catch (error) {
+  playMode = "sequence";
+}
 
 function renderTags(container, moods) {
   container.innerHTML = moods.map((mood) => `<span class="tag">${mood}</span>`).join("");
@@ -199,11 +211,21 @@ function renderTags(container, moods) {
 function showBottomNav() {
   if (bottomNav) bottomNav.classList.remove("is-hidden");
   document.body.classList.remove("immersive-mode");
+  showFloatingPlayer();
 }
 
 function hideBottomNav() {
   if (bottomNav) bottomNav.classList.add("is-hidden");
   document.body.classList.add("immersive-mode");
+  hideFloatingPlayer();
+}
+
+function showFloatingPlayer() {
+  if (floatingPlayer) floatingPlayer.classList.remove("is-hidden");
+}
+
+function hideFloatingPlayer() {
+  if (floatingPlayer) floatingPlayer.classList.add("is-hidden");
 }
 
 function updateBottomNavVisibility() {
@@ -281,13 +303,13 @@ function resetPlaybackUi() {
   lyricLineElements.forEach((line) => line.classList.remove("is-active"));
   updatePlayButtonText(false);
   $("#singPlayButton").textContent = "开始轻唱";
-  updateMiniPlayer();
+  updateFloatingPlayer();
 }
 
 function setAudioStatus(message) {
   audioStatus.textContent = message;
   singAudioStatus.textContent = message;
-  miniPlayerStatus.textContent = message || (audioPlayer.paused ? "已暂停" : "正在播放");
+  updateFloatingPlayer(message);
 }
 
 function updatePlayButtonText(isPlaying) {
@@ -304,9 +326,21 @@ function updatePlayButtonText(isPlaying) {
 }
 
 function setPlayMode(mode) {
-  playMode = mode;
-  $("#listenPlayMode").value = mode;
-  $("#singPlayMode").value = mode;
+  playMode = ["sequence", "random", "repeat-one"].includes(mode) ? mode : "sequence";
+  $("#listenPlayMode").value = playMode;
+  $("#singPlayMode").value = playMode;
+  try {
+    localStorage.setItem(PLAY_MODE_STORAGE_KEY, playMode);
+  } catch (error) {
+    // 隐私模式禁用存储时，当前页面内的播放模式仍然有效。
+  }
+  updateFloatingPlayer();
+}
+
+function togglePlayMode() {
+  const modes = ["sequence", "random", "repeat-one"];
+  const nextIndex = (modes.indexOf(playMode) + 1) % modes.length;
+  setPlayMode(modes[nextIndex]);
 }
 
 function getCurrentAudioSrc() {
@@ -323,15 +357,19 @@ function resolveAudioUrl(src) {
   return new URL(src, window.location.href).href;
 }
 
-function updateMiniPlayer() {
-  const hasPlayableSong = Boolean(currentSong && loadedSongId);
-  miniPlayer.hidden = !hasPlayableSong;
-  if (!hasPlayableSong) return;
-  miniPlayerTitle.textContent = currentSong.title;
-  miniPlayerStatus.textContent = audioStatus.textContent ||
-    (audioPlayer.paused ? "已暂停" : "正在播放");
-  miniPlayButton.textContent = audioPlayer.paused ? "▶" : "Ⅱ";
-  miniPlayButton.setAttribute("aria-label", audioPlayer.paused ? "播放" : "暂停");
+function updateFloatingPlayer(statusMessage = "") {
+  if (!floatingPlayer) return;
+  const modeLabels = {
+    sequence: "顺序",
+    random: "随机",
+    "repeat-one": "单曲"
+  };
+  floatingPlayerTitle.textContent = currentSong?.title || "还没有开始播放";
+  floatingPlayerStatus.textContent = currentSong
+    ? (statusMessage || audioStatus.textContent || (audioPlayer.paused ? "已暂停" : "正在播放"))
+    : "选一首歌后就可以开始";
+  floatingPlayButton.textContent = currentSong && !audioPlayer.paused ? "暂停" : "播放";
+  floatingModeButton.textContent = modeLabels[playMode];
 }
 
 function updateMediaSession() {
@@ -432,7 +470,7 @@ async function playCurrentSong() {
     audioPlayer.load();
     loadedSongId = currentSong.id;
     updateMediaSession();
-    updateMiniPlayer();
+    updateFloatingPlayer();
   }
   loadedSongId = currentSong.id;
 
@@ -480,10 +518,19 @@ function animateRecord() {
   window.setTimeout(() => tonearm.classList.remove("is-moving"), 650);
 }
 
-function setCurrentSong(song, sourceMood = song.mood[0], source = "mood") {
+function rememberCurrentSong(nextSong, shouldRemember = true) {
+  if (!shouldRemember || !currentSong || currentSong.id === nextSong?.id) return;
+  playHistory.push(currentSong.id);
+  if (playHistory.length > 30) playHistory = playHistory.slice(-30);
+}
+
+function setCurrentSong(song, sourceMood = song.mood[0], source = "mood", options = {}) {
   closeModes();
   const isSongChanged = !currentSong || currentSong.id !== song.id;
-  if (isSongChanged) releaseAudioTrack();
+  if (isSongChanged) {
+    rememberCurrentSong(song, options.recordHistory !== false);
+    releaseAudioTrack();
+  }
   currentSong = song;
   selectedMood = sourceMood;
   currentSource = source;
@@ -501,6 +548,7 @@ function setCurrentSong(song, sourceMood = song.mood[0], source = "mood") {
   void resultCard.offsetWidth;
   resultCard.classList.add("is-entering");
   animateRecord();
+  updateFloatingPlayer();
 }
 
 // 用户从心情盒子或音乐盒选歌时，共用这一条“选歌并静听”路径。
@@ -515,11 +563,12 @@ async function selectSongAndPlay(song, source, sourceMood = song.mood[0]) {
   }
 }
 
-function renderCurrentSongWithoutClosingMode(song) {
+function renderCurrentSongWithoutClosingMode(song, options = {}) {
   const listenWasOpen = !listenLayer.hidden;
   const singWasOpen = !singLayer.hidden;
   const sourceMood = song.mood[0];
 
+  rememberCurrentSong(song, options.recordHistory !== false);
   releaseAudioTrack();
   currentSong = song;
   selectedMood = sourceMood;
@@ -530,32 +579,76 @@ function renderCurrentSongWithoutClosingMode(song) {
 
   if (listenWasOpen) openListenMode();
   if (singWasOpen) openSingMode();
+  updateFloatingPlayer();
 }
 
-function getNextSong() {
-  if (!currentSong || songs.length === 0) return null;
-  if (playMode === "repeat-one") return currentSong;
-  if (playMode === "shuffle") return chooseRandom(songs);
-
-  const currentIndex = songs.findIndex((song) => song.id === currentSong.id);
-  return songs[(currentIndex + 1) % songs.length];
+function getCurrentSongIndex() {
+  return currentSong ? songs.findIndex((song) => song.id === currentSong.id) : -1;
 }
 
-async function playNextAfterEnded() {
-  const nextSong = getNextSong();
-  if (!nextSong) return;
-
-  if (playMode === "repeat-one") {
-    audioPlayer.currentTime = 0;
-  } else {
-    renderCurrentSongWithoutClosingMode(nextSong);
-  }
-
+async function playSongByIndex(index, options = {}) {
+  if (!songs.length) return;
+  const normalizedIndex = ((index % songs.length) + songs.length) % songs.length;
+  const song = songs[normalizedIndex];
+  renderCurrentSongWithoutClosingMode(song, options);
   try {
     await playCurrentSong();
   } catch (error) {
-    // 下一首若被浏览器拦截，保留统一播放提示。
+    // 微信若阻止连续播放，统一播放函数会显示再次点击提示。
   }
+  updateFloatingPlayer();
+}
+
+async function playRandomSong(options = {}) {
+  if (!songs.length) return;
+  const candidates = currentSong && songs.length > 1
+    ? songs.filter((song) => song.id !== currentSong.id)
+    : songs;
+  const song = chooseRandom(candidates);
+  const index = songs.findIndex((item) => item.id === song.id);
+  await playSongByIndex(index, options);
+}
+
+async function playNextSong() {
+  if (!songs.length) return;
+  if (!currentSong) {
+    await playSongByIndex(0);
+    return;
+  }
+
+  if (playMode === "repeat-one") {
+    audioPlayer.currentTime = 0;
+    await playCurrentSong();
+  } else if (playMode === "random") {
+    await playRandomSong();
+  } else {
+    await playSongByIndex(getCurrentSongIndex() + 1);
+  }
+  updateFloatingPlayer();
+}
+
+async function playPreviousSong() {
+  if (!songs.length) return;
+  if (!currentSong) {
+    await playSongByIndex(songs.length - 1);
+    return;
+  }
+
+  if (playMode === "repeat-one") {
+    audioPlayer.currentTime = 0;
+    await playCurrentSong();
+  } else if (playMode === "random") {
+    const previousId = playHistory.pop();
+    const previousIndex = songs.findIndex((song) => song.id === previousId);
+    if (previousIndex >= 0) {
+      await playSongByIndex(previousIndex, { recordHistory: false });
+    } else {
+      await playRandomSong({ recordHistory: false });
+    }
+  } else {
+    await playSongByIndex(getCurrentSongIndex() - 1);
+  }
+  updateFloatingPlayer();
 }
 
 function drawSong(mood) {
@@ -855,7 +948,10 @@ function openCurrentSong() {
 }
 
 async function togglePlayback() {
-  if (!currentSong) return;
+  if (!currentSong) {
+    await playSongByIndex(0);
+    return;
+  }
   if (!audioPlayer.paused) {
     audioPlayer.pause();
     return;
@@ -1593,7 +1689,7 @@ audioPlayer.addEventListener("pause", () => {
   updatePlayButtonText(false);
   $("#singPlayButton").textContent = "开始轻唱";
   updateMediaPlaybackState("paused");
-  updateMiniPlayer();
+  updateFloatingPlayer();
 });
 
 audioPlayer.addEventListener("ended", async () => {
@@ -1601,21 +1697,21 @@ audioPlayer.addEventListener("ended", async () => {
   updatePlayButtonText(false);
   $("#singPlayButton").textContent = "开始轻唱";
   updateMediaPlaybackState("none");
-  updateMiniPlayer();
-  await playNextAfterEnded();
+  updateFloatingPlayer();
+  await playNextSong();
 });
 
 audioPlayer.addEventListener("waiting", () => {
   setAudioStatus("音频加载中……");
   $("#quietListenBtn").textContent = "正在加载音频……";
   $("#singPlayButton").textContent = "正在加载音频……";
-  updateMiniPlayer();
+  updateFloatingPlayer();
 });
 
 audioPlayer.addEventListener("canplay", () => {
   setAudioStatus("可以播放啦");
   if (audioPlayer.paused) updatePlayButtonText(false);
-  updateMiniPlayer();
+  updateFloatingPlayer();
 });
 
 audioPlayer.addEventListener("loadedmetadata", () => {
@@ -1627,7 +1723,7 @@ audioPlayer.addEventListener("playing", () => {
   updatePlayButtonText(true);
   $("#singPlayButton").textContent = "先停一下";
   updateMediaPlaybackState("playing");
-  updateMiniPlayer();
+  updateFloatingPlayer();
   updateAudioDebugPanel();
 });
 
@@ -1640,7 +1736,7 @@ audioPlayer.addEventListener("error", () => {
   $("#quietListenBtn").textContent = "重新加载音频";
   $("#singPlayButton").textContent = "重新加载音频";
   loadedSongId = null;
-  updateMiniPlayer();
+  updateFloatingPlayer();
   updateAudioDebugPanel();
 });
 
@@ -1652,8 +1748,10 @@ singLayer.addEventListener("click", (event) => {
   if (event.target === singLayer) exitSingMode();
 });
 
-miniPlayButton.addEventListener("click", togglePlayback);
-$("#miniEnterButton").addEventListener("click", openCurrentSong);
+floatingPlayButton.addEventListener("click", togglePlayback);
+$("#floatingPreviousButton").addEventListener("click", playPreviousSong);
+$("#floatingNextButton").addEventListener("click", playNextSong);
+floatingModeButton.addEventListener("click", togglePlayMode);
 
 function savePendingMessage(note) {
   try {
@@ -1756,18 +1854,8 @@ function setMediaSessionHandlers() {
   const handlers = {
     play: () => playCurrentSong().catch(() => {}),
     pause: () => audioPlayer.pause(),
-    nexttrack: () => playNextAfterEnded(),
-    previoustrack: async () => {
-      if (!currentSong || !songs.length) return;
-      const currentIndex = songs.findIndex((song) => song.id === currentSong.id);
-      const previousSong = songs[(currentIndex - 1 + songs.length) % songs.length];
-      renderCurrentSongWithoutClosingMode(previousSong);
-      try {
-        await playCurrentSong();
-      } catch (error) {
-        // playCurrentSong 已显示真实播放错误。
-      }
-    }
+    nexttrack: () => playNextSong(),
+    previoustrack: () => playPreviousSong()
   };
 
   Object.entries(handlers).forEach(([action, handler]) => {
@@ -1786,7 +1874,7 @@ document.addEventListener("visibilitychange", () => {
   }
   if (wasPlayingBeforeHidden && audioPlayer.paused && loadedSongId) {
     setAudioStatus("如果音乐停了，轻点一下继续听。");
-    updateMiniPlayer();
+    updateFloatingPlayer();
   }
   wasPlayingBeforeHidden = false;
 });
@@ -1794,7 +1882,7 @@ document.addEventListener("visibilitychange", () => {
 loadSavedLyrics();
 loadTheme();
 renderCatalog();
-setPlayMode("sequence");
+setPlayMode(playMode);
 startLyricSyncTimer();
 setMediaSessionHandlers();
 updateBottomNavVisibility();

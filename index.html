@@ -188,7 +188,7 @@
         <span>听完以后</span>
         <select id="listenPlayMode" aria-label="播放模式">
           <option value="sequence">顺序播放</option>
-          <option value="shuffle">随机播放</option>
+          <option value="random">随机播放</option>
           <option value="repeat-one">单曲循环</option>
         </select>
       </label>
@@ -233,7 +233,7 @@
         <span>听完以后</span>
         <select id="singPlayMode" aria-label="播放模式">
           <option value="sequence">顺序播放</option>
-          <option value="shuffle">随机播放</option>
+          <option value="random">随机播放</option>
           <option value="repeat-one">单曲循环</option>
         </select>
       </label>
@@ -351,14 +351,18 @@
     <audio id="lyricsHelperAudio" preload="metadata"></audio>
   </section>
 
-  <aside class="mini-player" id="miniPlayer" hidden aria-label="迷你播放器">
-    <div class="mini-player-copy">
-      <span class="mini-player-label">NOW PLAYING</span>
-      <strong id="miniPlayerTitle">还没有选歌</strong>
-      <span id="miniPlayerStatus">已暂停</span>
+  <aside class="floating-player" id="floatingPlayer" aria-label="悬浮播放器">
+    <div class="floating-player-copy">
+      <span class="floating-player-label">NOW PLAYING</span>
+      <strong id="floatingPlayerTitle">还没有开始播放</strong>
+      <span id="floatingPlayerStatus">选一首歌后就可以开始</span>
     </div>
-    <button class="mini-player-button" id="miniPlayButton" type="button" aria-label="播放">▶</button>
-    <button class="mini-player-enter" id="miniEnterButton" type="button">进入歌曲</button>
+    <div class="floating-player-controls">
+      <button class="floating-control-button" id="floatingPreviousButton" type="button" aria-label="上一首">‹</button>
+      <button class="floating-control-button is-primary" id="floatingPlayButton" type="button">播放</button>
+      <button class="floating-control-button" id="floatingNextButton" type="button" aria-label="下一首">›</button>
+      <button class="floating-mode-button" id="floatingModeButton" type="button">顺序</button>
+    </div>
   </aside>
 
   <aside class="audio-debug-panel" id="audioDebugPanel" hidden aria-live="polite">

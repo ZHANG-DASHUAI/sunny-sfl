@@ -2,3 +2,4 @@ assets/audio/
 *.mp3
 assets/audio_original/
 *.flac
+*.wav
