@@ -201,8 +201,7 @@ let gainNode = null;
 let surroundTimer = null;
 let surroundPhase = 0;
 let isSurroundEnabled = false;
-let surroundCorsCheckedUrl = "";
-let surroundCorsAllowed = false;
+let isSurroundAvailable = true;
 
 const LYRIC_SYNC_INTERVAL = 200;
 const MESSAGE_STORAGE_KEY = "mood-box-pending-messages";
@@ -427,84 +426,41 @@ function saveSurroundPreference() {
   }
 }
 
-function isSurroundSupported() {
-  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-  return Boolean(
-    AudioContextClass &&
-    AudioContextClass.prototype.createMediaElementSource &&
-    AudioContextClass.prototype.createStereoPanner
-  );
-}
-
-async function canUseSurroundForCurrentAudio() {
-  const src = getCurrentAudioSrc();
-  const audioUrl = resolveAudioUrl(src);
-  if (!audioUrl) return false;
-  if (new URL(audioUrl, window.location.href).origin === window.location.origin) return true;
-  if (surroundCorsCheckedUrl === audioUrl) return surroundCorsAllowed;
-
+function setupSurroundAudio() {
   try {
-    const response = await fetch(audioUrl, {
-      method: "HEAD",
-      mode: "cors"
-    });
-    surroundCorsAllowed = response.ok;
-  } catch (error) {
-    surroundCorsAllowed = false;
-  }
-  surroundCorsCheckedUrl = audioUrl;
-  return surroundCorsAllowed;
-}
-
-async function prepareAudioElementForSurround() {
-  if (!await canUseSurroundForCurrentAudio()) return false;
-  if (audioPlayer.crossOrigin === "anonymous") return true;
-
-  const audioUrl = resolveAudioUrl(getCurrentAudioSrc());
-  const hasLoadedSource = Boolean(audioPlayer.getAttribute("src"));
-  const previousTime = Number.isFinite(audioPlayer.currentTime) ? audioPlayer.currentTime : 0;
-  audioPlayer.pause();
-  audioPlayer.crossOrigin = "anonymous";
-
-  if (hasLoadedSource && audioUrl) {
-    audioPlayer.src = audioUrl;
-    audioPlayer.load();
-    loadedSongId = currentSong?.id || null;
-    try {
-      await waitForAudioMetadata();
-      if (Number.isFinite(audioPlayer.duration) && previousTime < audioPlayer.duration) {
-        audioPlayer.currentTime = previousTime;
-      }
-    } catch (error) {
-      console.warn("环绕模式重新读取音频失败：", error);
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextClass) {
+      isSurroundAvailable = false;
+      setSurroundStatus("这个浏览器暂时不支持环绕效果，正常听也很好。");
       return false;
     }
-  }
-  return true;
-}
 
-function setupSurroundAudio() {
-  if (!isSurroundSupported()) return false;
-
-  try {
     if (!audioContext) {
-      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
       audioContext = new AudioContextClass();
     }
 
     if (!mediaSourceNode) {
-      mediaSourceNode = audioContext.createMediaElementSource(audioPlayer);
+      if (typeof audioContext.createStereoPanner !== "function") {
+        isSurroundAvailable = false;
+        setSurroundStatus("这个浏览器暂时不支持环绕效果，正常听也很好。");
+        return false;
+      }
+
       pannerNode = audioContext.createStereoPanner();
       gainNode = audioContext.createGain();
       gainNode.gain.value = 1;
+      mediaSourceNode = audioContext.createMediaElementSource(audioPlayer);
       mediaSourceNode
         .connect(pannerNode)
         .connect(gainNode)
         .connect(audioContext.destination);
     }
+    isSurroundAvailable = true;
     return true;
   } catch (error) {
-    console.warn("沉浸环绕初始化失败：", error);
+    isSurroundAvailable = false;
+    console.error("沉浸环绕初始化失败：", error);
+    setSurroundStatus("当前音频暂时不能做环绕处理，正常听也很好。");
     return false;
   }
 }
@@ -530,18 +486,10 @@ function startSurroundMotion() {
 
 async function activateSavedSurround() {
   if (!isSurroundEnabled) return true;
-  if (!await prepareAudioElementForSurround()) {
-    isSurroundEnabled = false;
-    saveSurroundPreference();
-    updateSurroundUi();
-    setSurroundStatus("当前音频暂不支持环绕处理，已经保持普通播放。");
-    return false;
-  }
   if (!setupSurroundAudio()) {
     isSurroundEnabled = false;
     saveSurroundPreference();
     updateSurroundUi();
-    setSurroundStatus("这个浏览器暂时不支持沉浸环绕，正常听也很好。");
     return false;
   }
 
@@ -550,8 +498,8 @@ async function activateSavedSurround() {
     startSurroundMotion();
     return true;
   } catch (error) {
-    console.warn("沉浸环绕启动失败：", error);
-    setSurroundStatus("这个浏览器暂时不支持沉浸环绕，正常听也很好。");
+    console.error("沉浸环绕启动失败：", error);
+    setSurroundStatus("当前音频暂时不能做环绕处理，正常听也很好。");
     return false;
   }
 }
@@ -560,33 +508,28 @@ async function toggleSurround() {
   if (isSurroundEnabled) {
     isSurroundEnabled = false;
     stopSurroundMotion();
-    setSurroundStatus("沉浸环绕已关闭。");
+    setSurroundStatus("已经回到普通播放。");
   } else {
-    const wasPlaying = !audioPlayer.paused;
-    if (!await prepareAudioElementForSurround()) {
-      setSurroundStatus("当前音频暂不支持环绕处理，已经保持普通播放。");
+    if (!currentSong) {
+      setSurroundStatus("先选一首歌，再试试环绕。");
+      return;
+    }
+    if (!audioPlayer.getAttribute("src")) {
+      setSurroundStatus("先轻轻播放一下，再打开环绕会更稳定。");
       return;
     }
     if (!setupSurroundAudio()) {
-      setSurroundStatus("这个浏览器暂时不支持沉浸环绕，正常听也很好。");
       return;
     }
     try {
       if (audioContext.state === "suspended") await audioContext.resume();
       isSurroundEnabled = true;
       startSurroundMotion();
-      setSurroundStatus("沉浸环绕已打开。");
-      if (wasPlaying) {
-        try {
-          await audioPlayer.play();
-        } catch (error) {
-          setAudioStatus("环绕已经准备好，再轻点一下继续听。");
-        }
-      }
+      setSurroundStatus("沉浸环绕已打开，声音会轻轻流动。");
     } catch (error) {
-      console.warn("沉浸环绕启动失败：", error);
+      console.error("沉浸环绕启动失败：", error);
       isSurroundEnabled = false;
-      setSurroundStatus("这个浏览器暂时不支持沉浸环绕，正常听也很好。");
+      setSurroundStatus("当前音频暂时不能做环绕处理，正常听也很好。");
     }
   }
 
@@ -707,6 +650,7 @@ async function playCurrentSong() {
 
   if (audioPlayer.src !== audioUrl) {
     audioPlayer.pause();
+    audioPlayer.crossOrigin = "anonymous";
     audioPlayer.src = audioUrl;
     audioPlayer.load();
     loadedSongId = currentSong.id;
@@ -1147,6 +1091,7 @@ async function selectSingSource(mode, force = false) {
   const audioUrl = resolveAudioUrl(src);
   try {
     if (src && audioPlayer.src !== audioUrl) {
+      audioPlayer.crossOrigin = "anonymous";
       audioPlayer.src = audioUrl;
       audioPlayer.load();
       loadedSongId = currentSong.id;
@@ -2082,7 +2027,7 @@ audioPlayer.addEventListener("error", () => {
   console.error("当前歌曲：", currentSong?.title || "(none)");
   console.error("audio URL:", resolveAudioUrl(getCurrentAudioSrc()));
   console.error("audio error:", audioPlayer.error);
-  setAudioStatus("音频加载失败，请检查 R2 文件路径或文件是否公开。");
+  setAudioStatus("音频加载失败，请检查 R2 文件路径、公开权限或 CORS 设置。");
   $("#quietListenBtn").textContent = "重新加载音频";
   $("#singPlayButton").textContent = "重新加载音频";
   loadedSongId = null;

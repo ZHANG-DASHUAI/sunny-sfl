@@ -303,7 +303,34 @@ instrumentalAudio: AUDIO_BASE_URL + "qing-tian-instrumental.mp3"
 - 部分微信内置浏览器可能不支持 Web Audio API 或立体声声像控制；不支持时会保持普通播放。
 - 环绕效果不修改 `audioPlayer.volume`，因此不会影响静听音量、原声陪唱 18% 设置、轻伴唱音量、歌词高亮或 R2 音频地址。
 
-因为音频来自 Cloudflare R2，R2 的音频响应需要允许当前 Pages 域名跨域访问，供 Web Audio API 读取。普通播放正常但开启环绕后没有声音时，请检查 R2 CORS 设置。
+因为音频放在 Cloudflare R2、网页部署在 Cloudflare Pages，沉浸环绕使用 Web Audio API 时需要 R2 开启 CORS。全局 `audioPlayer` 已设置 `crossorigin="anonymous"`，代码也会在设置每个音频地址前先设置 `audioPlayer.crossOrigin = "anonymous"`。
+
+R2 CORS 示例：
+
+```json
+[
+  {
+    "AllowedOrigins": [
+      "https://你的项目.pages.dev"
+    ],
+    "AllowedMethods": [
+      "GET",
+      "HEAD"
+    ],
+    "AllowedHeaders": [
+      "*"
+    ],
+    "ExposeHeaders": [
+      "Content-Length",
+      "Content-Type",
+      "Accept-Ranges"
+    ],
+    "MaxAgeSeconds": 3600
+  }
+]
+```
+
+测试阶段可以先把 `AllowedOrigins` 写成 `["*"]`，确认环绕可用后，建议改为自己的 Pages 域名，例如 `https://sunny-sfl.pages.dev`。修改 R2 CORS 后需要等待配置生效，并重新打开页面测试。
 
 ### 本地录一小段
 
