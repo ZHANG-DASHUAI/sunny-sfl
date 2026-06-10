@@ -291,6 +291,20 @@ instrumentalAudio: AUDIO_BASE_URL + "qing-tian-instrumental.mp3"
 
 如果该字段为空，“轻伴唱”不可用，页面会提示先用原声陪唱。项目不做弱人声、不做在线去人声，也不会调用盗版伴奏接口或下载 QQ 音乐音频。请自行准备有权使用的伴奏 MP3，上传到 Cloudflare R2 的 `audio/` 目录后填写 `instrumentalAudio`。
 
+### 沉浸环绕
+
+静听模式和轻唱模式都提供“沉浸环绕”开关，推荐戴耳机体验：
+
+- 使用浏览器 Web Audio API 的 `MediaElementAudioSourceNode`、`StereoPannerNode` 和 `GainNode`。
+- 声音只会在左右声道之间缓慢、轻微地流动，不会额外放大音量。
+- 这是轻量的氛围效果，不是真正的专业空间音频。
+- 开关状态保存在 `localStorage` 的 `musicBoxSurroundEnabled`。
+- 页面加载时不会自动创建或启动 `AudioContext`，只有用户点击播放或环绕开关后才会初始化。
+- 部分微信内置浏览器可能不支持 Web Audio API 或立体声声像控制；不支持时会保持普通播放。
+- 环绕效果不修改 `audioPlayer.volume`，因此不会影响静听音量、原声陪唱 18% 设置、轻伴唱音量、歌词高亮或 R2 音频地址。
+
+因为音频来自 Cloudflare R2，R2 的音频响应需要允许当前 Pages 域名跨域访问，供 Web Audio API 读取。普通播放正常但开启环绕后没有声音时，请检查 R2 CORS 设置。
+
 ### 本地录一小段
 
 - 点击“录一小段”后，浏览器才会申请麦克风权限。

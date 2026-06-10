@@ -145,6 +145,8 @@ const singSourceStatus = $("#singSourceStatus");
 const singSourceDescription = $("#singSourceDescription");
 const singVolumeSlider = $("#singVolumeSlider");
 const singVolumeValue = $("#singVolumeValue");
+const surroundToggleButtons = $$("[data-surround-toggle]");
+const surroundStatusElements = $$("[data-surround-status]");
 const recordButton = $("#recordButton");
 const recordingStatus = $("#recordingStatus");
 const recordingDot = $("#recordingDot");
@@ -192,6 +194,15 @@ let helperSyncTimer = null;
 let isManualAdjustingLyrics = false;
 let tappingLineIndex = 0;
 let tapHistory = [];
+let audioContext = null;
+let mediaSourceNode = null;
+let pannerNode = null;
+let gainNode = null;
+let surroundTimer = null;
+let surroundPhase = 0;
+let isSurroundEnabled = false;
+let surroundCorsCheckedUrl = "";
+let surroundCorsAllowed = false;
 
 const LYRIC_SYNC_INTERVAL = 200;
 const MESSAGE_STORAGE_KEY = "mood-box-pending-messages";
@@ -200,6 +211,7 @@ const LEGACY_LYRICS_STORAGE_PREFIX = "musicBoxLyrics_";
 const PLAY_MODE_STORAGE_KEY = "musicBoxPlayMode";
 const SING_MODE_STORAGE_KEY = "musicBoxSingAccompanyMode";
 const SING_VOLUME_STORAGE_KEY = "musicBoxSingVolume";
+const SURROUND_STORAGE_KEY = "musicBoxSurroundEnabled";
 
 try {
   const savedPlayMode = localStorage.getItem(PLAY_MODE_STORAGE_KEY);
@@ -225,6 +237,12 @@ try {
 } catch (error) {
   singAccompanyMode = "vocal";
   singVolume = 0.18;
+}
+
+try {
+  isSurroundEnabled = localStorage.getItem(SURROUND_STORAGE_KEY) === "true";
+} catch (error) {
+  isSurroundEnabled = false;
 }
 
 function renderTags(container, moods) {
@@ -387,6 +405,195 @@ function applyPlaybackVolume() {
   audioPlayer.volume = currentMode === "sing" ? getSingPlaybackVolume() : 1;
 }
 
+function setSurroundStatus(message) {
+  surroundStatusElements.forEach((element) => {
+    element.textContent = message;
+  });
+}
+
+function updateSurroundUi() {
+  surroundToggleButtons.forEach((button) => {
+    button.textContent = isSurroundEnabled ? "关闭环绕" : "沉浸环绕";
+    button.classList.toggle("is-active", isSurroundEnabled);
+    button.setAttribute("aria-pressed", String(isSurroundEnabled));
+  });
+}
+
+function saveSurroundPreference() {
+  try {
+    localStorage.setItem(SURROUND_STORAGE_KEY, isSurroundEnabled ? "true" : "false");
+  } catch (error) {
+    // 本地存储不可用时，当前页面内的环绕开关仍然有效。
+  }
+}
+
+function isSurroundSupported() {
+  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+  return Boolean(
+    AudioContextClass &&
+    AudioContextClass.prototype.createMediaElementSource &&
+    AudioContextClass.prototype.createStereoPanner
+  );
+}
+
+async function canUseSurroundForCurrentAudio() {
+  const src = getCurrentAudioSrc();
+  const audioUrl = resolveAudioUrl(src);
+  if (!audioUrl) return false;
+  if (new URL(audioUrl, window.location.href).origin === window.location.origin) return true;
+  if (surroundCorsCheckedUrl === audioUrl) return surroundCorsAllowed;
+
+  try {
+    const response = await fetch(audioUrl, {
+      method: "HEAD",
+      mode: "cors"
+    });
+    surroundCorsAllowed = response.ok;
+  } catch (error) {
+    surroundCorsAllowed = false;
+  }
+  surroundCorsCheckedUrl = audioUrl;
+  return surroundCorsAllowed;
+}
+
+async function prepareAudioElementForSurround() {
+  if (!await canUseSurroundForCurrentAudio()) return false;
+  if (audioPlayer.crossOrigin === "anonymous") return true;
+
+  const audioUrl = resolveAudioUrl(getCurrentAudioSrc());
+  const hasLoadedSource = Boolean(audioPlayer.getAttribute("src"));
+  const previousTime = Number.isFinite(audioPlayer.currentTime) ? audioPlayer.currentTime : 0;
+  audioPlayer.pause();
+  audioPlayer.crossOrigin = "anonymous";
+
+  if (hasLoadedSource && audioUrl) {
+    audioPlayer.src = audioUrl;
+    audioPlayer.load();
+    loadedSongId = currentSong?.id || null;
+    try {
+      await waitForAudioMetadata();
+      if (Number.isFinite(audioPlayer.duration) && previousTime < audioPlayer.duration) {
+        audioPlayer.currentTime = previousTime;
+      }
+    } catch (error) {
+      console.warn("环绕模式重新读取音频失败：", error);
+      return false;
+    }
+  }
+  return true;
+}
+
+function setupSurroundAudio() {
+  if (!isSurroundSupported()) return false;
+
+  try {
+    if (!audioContext) {
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      audioContext = new AudioContextClass();
+    }
+
+    if (!mediaSourceNode) {
+      mediaSourceNode = audioContext.createMediaElementSource(audioPlayer);
+      pannerNode = audioContext.createStereoPanner();
+      gainNode = audioContext.createGain();
+      gainNode.gain.value = 1;
+      mediaSourceNode
+        .connect(pannerNode)
+        .connect(gainNode)
+        .connect(audioContext.destination);
+    }
+    return true;
+  } catch (error) {
+    console.warn("沉浸环绕初始化失败：", error);
+    return false;
+  }
+}
+
+function stopSurroundMotion() {
+  if (surroundTimer) {
+    window.clearInterval(surroundTimer);
+    surroundTimer = null;
+  }
+  if (pannerNode && audioContext) {
+    pannerNode.pan.setTargetAtTime(0, audioContext.currentTime, 0.25);
+  }
+}
+
+function startSurroundMotion() {
+  if (!pannerNode || !audioContext || surroundTimer) return;
+  surroundTimer = window.setInterval(() => {
+    surroundPhase += 0.025;
+    const panValue = Math.sin(surroundPhase) * 0.35;
+    pannerNode.pan.setTargetAtTime(panValue, audioContext.currentTime, 0.22);
+  }, 120);
+}
+
+async function activateSavedSurround() {
+  if (!isSurroundEnabled) return true;
+  if (!await prepareAudioElementForSurround()) {
+    isSurroundEnabled = false;
+    saveSurroundPreference();
+    updateSurroundUi();
+    setSurroundStatus("当前音频暂不支持环绕处理，已经保持普通播放。");
+    return false;
+  }
+  if (!setupSurroundAudio()) {
+    isSurroundEnabled = false;
+    saveSurroundPreference();
+    updateSurroundUi();
+    setSurroundStatus("这个浏览器暂时不支持沉浸环绕，正常听也很好。");
+    return false;
+  }
+
+  try {
+    if (audioContext.state === "suspended") await audioContext.resume();
+    startSurroundMotion();
+    return true;
+  } catch (error) {
+    console.warn("沉浸环绕启动失败：", error);
+    setSurroundStatus("这个浏览器暂时不支持沉浸环绕，正常听也很好。");
+    return false;
+  }
+}
+
+async function toggleSurround() {
+  if (isSurroundEnabled) {
+    isSurroundEnabled = false;
+    stopSurroundMotion();
+    setSurroundStatus("沉浸环绕已关闭。");
+  } else {
+    const wasPlaying = !audioPlayer.paused;
+    if (!await prepareAudioElementForSurround()) {
+      setSurroundStatus("当前音频暂不支持环绕处理，已经保持普通播放。");
+      return;
+    }
+    if (!setupSurroundAudio()) {
+      setSurroundStatus("这个浏览器暂时不支持沉浸环绕，正常听也很好。");
+      return;
+    }
+    try {
+      if (audioContext.state === "suspended") await audioContext.resume();
+      isSurroundEnabled = true;
+      startSurroundMotion();
+      setSurroundStatus("沉浸环绕已打开。");
+      if (wasPlaying) {
+        try {
+          await audioPlayer.play();
+        } catch (error) {
+          setAudioStatus("环绕已经准备好，再轻点一下继续听。");
+        }
+      }
+    } catch (error) {
+      console.warn("沉浸环绕启动失败：", error);
+      isSurroundEnabled = false;
+      setSurroundStatus("这个浏览器暂时不支持沉浸环绕，正常听也很好。");
+    }
+  }
+
+  saveSurroundPreference();
+  updateSurroundUi();
+}
+
 function resolveAudioUrl(src) {
   if (!src) return "";
   if (src.startsWith("http://") || src.startsWith("https://")) return src;
@@ -510,6 +717,7 @@ async function playCurrentSong() {
 
   try {
     setAudioStatus("音频加载中……");
+    await activateSavedSurround();
     await audioPlayer.play();
   } catch (error) {
     console.error("play() 播放失败：", error);
@@ -800,6 +1008,7 @@ function openListenMode() {
   renderTags($("#listenTags"), currentSong.mood);
 
   renderLyrics(listenLyricsList, { mode: "listen", compact: true });
+  updateSurroundUi();
   listenLayer.hidden = false;
   hideBottomNav();
   document.body.style.overflow = "hidden";
@@ -839,6 +1048,7 @@ function openSingMode() {
     button.classList.toggle("is-active", index === 0);
   });
   updateSingSourceUi();
+  updateSurroundUi();
   renderLyrics(lyricsList, { mode: "sing", compact: false });
   singLayer.hidden = false;
   hideBottomNav();
@@ -1705,6 +1915,9 @@ $("#cardQqButton").addEventListener("click", openQqMusic);
 $("#listenQqButton").addEventListener("click", openQqMusic);
 $("#quietListenBtn").addEventListener("click", togglePlayback);
 $("#singPlayButton").addEventListener("click", togglePlayback);
+surroundToggleButtons.forEach((button) => {
+  button.addEventListener("click", toggleSurround);
+});
 $("#listenPlayMode").addEventListener("change", (event) => setPlayMode(event.target.value));
 $("#singPlayMode").addEventListener("change", (event) => setPlayMode(event.target.value));
 
@@ -2033,6 +2246,7 @@ loadSavedLyrics();
 loadTheme();
 renderCatalog();
 setPlayMode(playMode);
+updateSurroundUi();
 startLyricSyncTimer();
 setMediaSessionHandlers();
 updateBottomNavVisibility();
@@ -2042,6 +2256,7 @@ window.addEventListener("beforeunload", () => {
   stopRecordingTracks();
   if (recordingUrl) URL.revokeObjectURL(recordingUrl);
   if (audioDebugTimer !== null) window.clearInterval(audioDebugTimer);
+  stopSurroundMotion();
   stopHelperSyncTimer();
   if (lyricSyncTimer !== null) {
     window.clearInterval(lyricSyncTimer);
