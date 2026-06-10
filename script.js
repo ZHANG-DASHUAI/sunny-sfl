@@ -202,6 +202,7 @@ let surroundTimer = null;
 let surroundPhase = 0;
 let isSurroundEnabled = false;
 let isSurroundAvailable = true;
+let surroundCorsPassed = null;
 
 const LYRIC_SYNC_INTERVAL = 200;
 const MESSAGE_STORAGE_KEY = "mood-box-pending-messages";
@@ -409,7 +410,9 @@ function setSurroundStatus(message) {
 
 function updateSurroundUi() {
   surroundToggleButtons.forEach((button) => {
-    button.textContent = isSurroundEnabled ? "关闭环绕" : "沉浸环绕";
+    button.textContent = isSurroundAvailable
+      ? (isSurroundEnabled ? "关闭环绕" : "沉浸环绕")
+      : "普通播放中";
     button.classList.toggle("is-active", isSurroundEnabled);
     button.setAttribute("aria-pressed", String(isSurroundEnabled));
   });
@@ -423,12 +426,47 @@ function saveSurroundPreference() {
   }
 }
 
+async function canUseSurroundForCurrentAudio() {
+  const src = getCurrentAudioSrc();
+  if (!src) {
+    surroundCorsPassed = false;
+    return false;
+  }
+
+  const url = resolveAudioUrl(src);
+  try {
+    const response = await fetch(url, {
+      method: "HEAD",
+      mode: "cors",
+      cache: "no-store"
+    });
+    surroundCorsPassed = response.ok;
+    updateAudioDebugPanel();
+    return surroundCorsPassed;
+  } catch (error) {
+    surroundCorsPassed = false;
+    console.warn("环绕 CORS 检测失败：", error);
+    updateAudioDebugPanel();
+    return false;
+  }
+}
+
+function fallbackToNormalPlayback(reason) {
+  console.warn("环绕回退普通播放：", reason);
+  isSurroundEnabled = false;
+  isSurroundAvailable = false;
+  stopSurroundEffect();
+  setSurroundStatus("这个浏览器暂时不支持环绕，已保持普通播放。");
+  updateSurroundUi();
+  saveSurroundPreference();
+  updateAudioDebugPanel();
+}
+
 function setupSurroundAudio() {
   try {
     const AudioContextClass = window.AudioContext || window.webkitAudioContext;
     if (!AudioContextClass) {
-      isSurroundAvailable = false;
-      setSurroundStatus("这个浏览器暂时不支持环绕效果，正常听也很好。");
+      fallbackToNormalPlayback("Web Audio API unavailable");
       return false;
     }
 
@@ -438,8 +476,7 @@ function setupSurroundAudio() {
 
     if (!mediaSourceNode) {
       if (typeof audioContext.createStereoPanner !== "function") {
-        isSurroundAvailable = false;
-        setSurroundStatus("这个浏览器暂时不支持环绕效果，正常听也很好。");
+        fallbackToNormalPlayback("StereoPannerNode unavailable");
         return false;
       }
 
@@ -455,14 +492,13 @@ function setupSurroundAudio() {
     isSurroundAvailable = true;
     return true;
   } catch (error) {
-    isSurroundAvailable = false;
     console.error("沉浸环绕初始化失败：", error);
-    setSurroundStatus("当前音频暂时不能做环绕处理，正常听也很好。");
+    fallbackToNormalPlayback(error);
     return false;
   }
 }
 
-function stopSurroundMotion() {
+function stopSurroundEffect() {
   if (surroundTimer) {
     window.clearInterval(surroundTimer);
     surroundTimer = null;
@@ -475,20 +511,78 @@ function stopSurroundMotion() {
 function startSurroundMotion() {
   if (!pannerNode || !audioContext || surroundTimer) return;
   surroundTimer = window.setInterval(() => {
-    surroundPhase += 0.025;
-    const panValue = Math.sin(surroundPhase) * 0.35;
+    surroundPhase += 0.012;
+    const panValue = Math.sin(surroundPhase) * 0.28;
     pannerNode.pan.setTargetAtTime(panValue, audioContext.currentTime, 0.22);
   }, 120);
 }
 
-async function activateSavedSurround() {
-  return true;
+function waitForAudioReady() {
+  return new Promise((resolve, reject) => {
+    if (audioPlayer.readyState >= 1) {
+      resolve();
+      return;
+    }
+    const cleanup = () => {
+      audioPlayer.removeEventListener("loadedmetadata", handleReady);
+      audioPlayer.removeEventListener("error", handleError);
+    };
+    const handleReady = () => {
+      cleanup();
+      resolve();
+    };
+    const handleError = () => {
+      cleanup();
+      reject(audioPlayer.error || new Error("audio reload failed"));
+    };
+    audioPlayer.addEventListener("loadedmetadata", handleReady, { once: true });
+    audioPlayer.addEventListener("error", handleError, { once: true });
+  });
+}
+
+async function restoreNormalAudio(audioUrl, oldTime, wasPlaying) {
+  if (mediaSourceNode) {
+    if (pannerNode && audioContext) {
+      pannerNode.pan.setTargetAtTime(0, audioContext.currentTime, 0.15);
+    }
+    if (audioContext?.state === "suspended") {
+      try {
+        await audioContext.resume();
+      } catch (error) {
+        console.warn("恢复 Web Audio 普通声道失败：", error);
+      }
+    }
+    if (wasPlaying && audioPlayer.paused) {
+      try {
+        await audioPlayer.play();
+      } catch (error) {
+        setAudioStatus("普通播放已经准备好，再轻点一下继续听。");
+      }
+    }
+    return;
+  }
+
+  try {
+    audioPlayer.pause();
+    audioPlayer.removeAttribute("crossorigin");
+    audioPlayer.crossOrigin = null;
+    audioPlayer.src = audioUrl;
+    audioPlayer.load();
+    await waitForAudioReady();
+    if (Number.isFinite(audioPlayer.duration) && oldTime < audioPlayer.duration) {
+      audioPlayer.currentTime = oldTime;
+    }
+    if (wasPlaying) await audioPlayer.play();
+  } catch (error) {
+    console.error("恢复普通播放失败：", error);
+    setAudioStatus("普通播放已经准备好，再轻点一下继续听。");
+  }
 }
 
 async function toggleSurround() {
   if (isSurroundEnabled) {
     isSurroundEnabled = false;
-    stopSurroundMotion();
+    stopSurroundEffect();
     setSurroundStatus("已经回到普通播放。");
   } else {
     if (!currentSong) {
@@ -499,22 +593,42 @@ async function toggleSurround() {
       setSurroundStatus("先轻轻播放一下，再打开环绕会更稳定。");
       return;
     }
-    if (!setupSurroundAudio()) {
-      isSurroundEnabled = false;
-      stopSurroundMotion();
-      setSurroundStatus("这个浏览器暂时不支持环绕，已保持普通播放。");
+
+    isSurroundAvailable = true;
+    const canSurround = await canUseSurroundForCurrentAudio();
+    if (!canSurround) {
+      fallbackToNormalPlayback("R2 CORS check failed");
       return;
     }
+
+    const audioUrl = resolveAudioUrl(getCurrentAudioSrc());
+    const wasPlaying = !audioPlayer.paused;
+    const oldTime = Number.isFinite(audioPlayer.currentTime) ? audioPlayer.currentTime : 0;
+
     try {
+      if (!mediaSourceNode) {
+        audioPlayer.pause();
+        audioPlayer.crossOrigin = "anonymous";
+        audioPlayer.src = audioUrl;
+        audioPlayer.load();
+        await waitForAudioReady();
+        if (Number.isFinite(audioPlayer.duration) && oldTime < audioPlayer.duration) {
+          audioPlayer.currentTime = oldTime;
+        }
+      }
+      if (!setupSurroundAudio()) {
+        await restoreNormalAudio(audioUrl, oldTime, wasPlaying);
+        return;
+      }
       if (audioContext.state === "suspended") await audioContext.resume();
       isSurroundEnabled = true;
       startSurroundMotion();
       setSurroundStatus("沉浸环绕已打开，声音会轻轻流动。");
+      if (wasPlaying) await audioPlayer.play();
     } catch (error) {
       console.error("沉浸环绕启动失败：", error);
-      isSurroundEnabled = false;
-      stopSurroundMotion();
-      setSurroundStatus("这个浏览器暂时不支持环绕，已保持普通播放。");
+      fallbackToNormalPlayback(error);
+      await restoreNormalAudio(audioUrl, oldTime, wasPlaying);
     }
   }
 
@@ -595,7 +709,12 @@ function updateAudioDebugPanel() {
     `networkState: ${audioPlayer.networkState}`,
     `error code: ${errorCode}`,
     `muted: ${audioPlayer.muted}`,
-    `volume: ${audioPlayer.volume}`
+    `volume: ${audioPlayer.volume}`,
+    `surround enabled: ${isSurroundEnabled}`,
+    `surround CORS: ${surroundCorsPassed === null ? "not checked" : surroundCorsPassed}`,
+    `AudioContext: ${audioContext?.state || "not created"}`,
+    `panner created: ${Boolean(pannerNode)}`,
+    `normal playback: ${!isSurroundEnabled}`
   ].join("\n");
 }
 
@@ -1840,7 +1959,9 @@ $("#cardQqButton").addEventListener("click", openQqMusic);
 $("#listenQqButton").addEventListener("click", openQqMusic);
 $("#quietListenBtn").addEventListener("click", togglePlayback);
 $("#singPlayButton").addEventListener("click", togglePlayback);
-// 环绕入口暂时隐藏，不绑定交互，避免任何 Web Audio 初始化影响普通播放。
+surroundToggleButtons.forEach((button) => {
+  button.addEventListener("click", toggleSurround);
+});
 $("#listenPlayMode").addEventListener("change", (event) => setPlayMode(event.target.value));
 $("#singPlayMode").addEventListener("change", (event) => setPlayMode(event.target.value));
 
@@ -2179,7 +2300,7 @@ window.addEventListener("beforeunload", () => {
   stopRecordingTracks();
   if (recordingUrl) URL.revokeObjectURL(recordingUrl);
   if (audioDebugTimer !== null) window.clearInterval(audioDebugTimer);
-  stopSurroundMotion();
+  stopSurroundEffect();
   stopHelperSyncTimer();
   if (lyricSyncTimer !== null) {
     window.clearInterval(lyricSyncTimer);

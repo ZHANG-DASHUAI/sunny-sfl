@@ -291,11 +291,19 @@ instrumentalAudio: AUDIO_BASE_URL + "qing-tian-instrumental.mp3"
 
 如果该字段为空，“轻伴唱”不可用，页面会提示先用原声陪唱。项目不做弱人声、不做在线去人声，也不会调用盗版伴奏接口或下载 QQ 音乐音频。请自行准备有权使用的伴奏 MP3，上传到 Cloudflare R2 的 `audio/` 目录后填写 `instrumentalAudio`。
 
-### 沉浸环绕
+### 安全沉浸环绕
 
-> 紧急稳定性说明：沉浸环绕入口目前暂时隐藏并默认关闭，页面不会读取旧的开启状态，也不会在播放时初始化 Web Audio API。当前版本优先保证微信和手机浏览器中的普通音频稳定播放。
+沉浸环绕默认关闭，并且不会读取旧的开启状态。普通播放完全使用原生 `audioPlayer.src` 和 `audioPlayer.play()`，不会创建 `AudioContext`，也不会经过 Web Audio 节点。
 
-环绕功能的代码仍保留，后续确认目标手机浏览器兼容后可以重新开放。设计说明如下：
+只有用户主动点击“沉浸环绕”时，页面才会：
+
+1. 使用 `HEAD` 请求检测当前 R2 音频是否允许 CORS。
+2. 检测通过后记录当前播放时间和播放状态。
+3. 以匿名跨域模式重新加载同一音频并恢复进度。
+4. 单次创建 `MediaElementAudioSourceNode`、`StereoPannerNode` 和 `GainNode`。
+5. 在左右 `-0.28` 到 `0.28` 之间缓慢移动声像。
+
+如果 CORS 检测、Web Audio 初始化或音频恢复任一步失败，页面会提示“这个浏览器暂时不支持环绕，已保持普通播放”，并尽量恢复原来的时间和播放状态。
 
 - 使用浏览器 Web Audio API 的 `MediaElementAudioSourceNode`、`StereoPannerNode` 和 `GainNode`。
 - 声音只会在左右声道之间缓慢、轻微地流动，不会额外放大音量。
@@ -304,7 +312,7 @@ instrumentalAudio: AUDIO_BASE_URL + "qing-tian-instrumental.mp3"
 - 部分微信内置浏览器可能不支持 Web Audio API 或立体声声像控制；不支持时会保持普通播放。
 - 环绕效果不修改 `audioPlayer.volume`，因此不会影响静听音量、原声陪唱 18% 设置、轻伴唱音量、歌词高亮或 R2 音频地址。
 
-因为音频放在 Cloudflare R2、网页部署在 Cloudflare Pages，未来重新启用 Web Audio API 时仍需要 R2 开启 CORS。当前普通播放不设置 `crossorigin`，直接使用原生 `audioPlayer.src` 和 `audioPlayer.play()`。
+因为音频放在 Cloudflare R2、网页部署在 Cloudflare Pages，沉浸环绕需要 R2 开启 CORS。普通播放不依赖 CORS 检测，即使环绕不可用也不影响正常听歌。
 
 R2 CORS 示例：
 
@@ -340,6 +348,8 @@ https://pub-e03989c8338345c4a57d568c8be819c0.r2.dev/audio/da-ben-zhong.mp3
 ```
 
 如果单独链接有声音，说明 R2 音频文件正常；如果网页没有声音，应继续检查网页播放链路。
+
+访问 `https://你的域名.pages.dev/?debug=1` 时，调试面板还会显示当前音频 URL、环绕开关、CORS 检测结果、AudioContext 状态、声像节点状态和当前是否处于普通播放。
 
 ### 本地录一小段
 
