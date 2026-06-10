@@ -178,7 +178,7 @@ let playHistory = [];
 let currentSource = "mood";
 let wasPlayingBeforeHidden = false;
 let singAccompanyMode = "vocal";
-let singVolume = 0.35;
+let singVolume = 0.18;
 let mediaRecorder = null;
 let recordingStream = null;
 let recordingChunks = [];
@@ -224,7 +224,7 @@ try {
   }
 } catch (error) {
   singAccompanyMode = "vocal";
-  singVolume = 0.35;
+  singVolume = 0.18;
 }
 
 function renderTags(container, moods) {
@@ -368,9 +368,7 @@ function togglePlayMode() {
 
 function getSingAudioSrc() {
   if (!currentSong) return "";
-  if (singAccompanyMode === "instrumental") {
-    return currentSong.instrumentalAudio || currentSong.audio || "";
-  }
+  if (singAccompanyMode === "instrumental") return currentSong.instrumentalAudio || "";
   return currentSong.audio || "";
 }
 
@@ -381,7 +379,7 @@ function getCurrentAudioSrc() {
 
 function getSingPlaybackVolume() {
   if (singAccompanyMode === "vocal") return singVolume;
-  return currentSong?.instrumentalAudio ? 0.7 : 0.25;
+  return currentSong?.instrumentalAudio ? 0.75 : singVolume;
 }
 
 function applyPlaybackVolume() {
@@ -807,10 +805,30 @@ function openListenMode() {
   document.body.style.overflow = "hidden";
 }
 
+function openCurrentSongListenView() {
+  if (!currentSong) {
+    setAudioStatus("先选一首歌吧。");
+    return;
+  }
+
+  currentSource = "floating";
+  currentMode = "listen";
+  openListenMode();
+  updatePlayButtonText(!audioPlayer.paused);
+}
+
 function openSingMode() {
   if (!currentSong) return;
   listenLayer.hidden = true;
   currentMode = "sing";
+  if (singAccompanyMode === "instrumental" && !currentSong.instrumentalAudio) {
+    singAccompanyMode = "vocal";
+    try {
+      localStorage.setItem(SING_MODE_STORAGE_KEY, singAccompanyMode);
+    } catch (error) {
+      // 本地存储不可用时，当前页面内仍会使用原声陪唱。
+    }
+  }
   applyPlaybackVolume();
   $("#singTitle").textContent = currentSong.title;
   const tips = currentSong.singTips.length ? currentSong.singTips : [
@@ -848,6 +866,11 @@ function closeModes() {
 
 function updateSingSourceUi() {
   $$(".sing-source-button").forEach((button) => {
+    const isUnavailableInstrumental =
+      button.dataset.singSource === "instrumental" && !currentSong?.instrumentalAudio;
+    button.disabled = isUnavailableInstrumental;
+    button.textContent = isUnavailableInstrumental ? "轻伴唱（暂无）" :
+      (button.dataset.singSource === "instrumental" ? "轻伴唱" : "原声陪唱");
     button.classList.toggle("is-active", button.dataset.singSource === singAccompanyMode);
   });
   const isVocal = singAccompanyMode === "vocal";
@@ -860,12 +883,12 @@ function updateSingSourceUi() {
 
   if (singAccompanyMode === "instrumental") {
     singSourceDescription.textContent = "如果这首有伴奏版，就只留下旋律陪你。";
-    singSourceStatus.textContent = currentSong?.instrumentalAudio
-      ? "现在是轻伴唱，旋律会多一点，声音留给你。"
-      : "这首还没有伴奏版，先把陪唱声音放轻一点。";
+    singSourceStatus.textContent = "现在是轻伴唱，旋律会多一点，声音留给你。";
   } else {
-    singSourceDescription.textContent = "把这一版声音放轻一点，留一点空间给你唱。";
-    singSourceStatus.textContent = "原声陪唱已经放轻一点。";
+    singSourceDescription.textContent = "把这一版声音放得很轻，留更多空间给你唱。";
+    singSourceStatus.textContent = currentSong?.instrumentalAudio
+      ? "原声陪唱已经放得很轻。"
+      : "这首还没有伴奏版，先用原声陪唱轻轻跟一下。";
   }
 }
 
@@ -894,6 +917,10 @@ function waitForAudioMetadata() {
 
 async function selectSingSource(mode, force = false) {
   if (!currentSong || (!force && mode === singAccompanyMode)) return;
+  if (mode === "instrumental" && !currentSong.instrumentalAudio) {
+    singSourceStatus.textContent = "这首还没有伴奏版，先用原声陪唱轻轻跟一下。";
+    return;
+  }
   const wasPlaying = !audioPlayer.paused;
   const previousTime = Number.isFinite(audioPlayer.currentTime) ? audioPlayer.currentTime : 0;
   audioPlayer.pause();
@@ -1858,10 +1885,23 @@ singLayer.addEventListener("click", (event) => {
   if (event.target === singLayer) exitSingMode();
 });
 
-floatingPlayButton.addEventListener("click", togglePlayback);
-$("#floatingPreviousButton").addEventListener("click", playPreviousSong);
-$("#floatingNextButton").addEventListener("click", playNextSong);
-floatingModeButton.addEventListener("click", togglePlayMode);
+floatingPlayer.addEventListener("click", openCurrentSongListenView);
+floatingPlayButton.addEventListener("click", (event) => {
+  event.stopPropagation();
+  togglePlayback();
+});
+$("#floatingPreviousButton").addEventListener("click", (event) => {
+  event.stopPropagation();
+  playPreviousSong();
+});
+$("#floatingNextButton").addEventListener("click", (event) => {
+  event.stopPropagation();
+  playNextSong();
+});
+floatingModeButton.addEventListener("click", (event) => {
+  event.stopPropagation();
+  togglePlayMode();
+});
 
 function savePendingMessage(note) {
   try {

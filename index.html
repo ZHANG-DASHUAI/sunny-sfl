@@ -225,18 +225,18 @@
           <span>给自己的声音留一点空间。</span>
         </div>
         <div class="sing-source-switch" role="group" aria-label="陪唱音源">
-        <button class="sing-source-button is-active" type="button" data-sing-source="vocal">原声陪唱</button>
-        <button class="sing-source-button" type="button" data-sing-source="instrumental">轻伴唱</button>
+          <button class="sing-source-button is-active" type="button" data-sing-source="vocal">原声陪唱</button>
+          <button class="sing-source-button" type="button" data-sing-source="instrumental">轻伴唱</button>
         </div>
         <p class="sing-source-description" id="singSourceDescription">
-          把这一版声音放轻一点，留一点空间给你唱。
+          把这一版声音放得很轻，留更多空间给你唱。
         </p>
         <label class="sing-volume-control" for="singVolumeSlider">
           <span>陪唱音量</span>
-          <strong id="singVolumeValue">35%</strong>
-          <input id="singVolumeSlider" type="range" min="0" max="1" step="0.05" value="0.35">
+          <strong id="singVolumeValue">18%</strong>
+          <input id="singVolumeSlider" type="range" min="0" max="1" step="0.05" value="0.18">
         </label>
-        <p class="sing-source-status" id="singSourceStatus">原声陪唱已经放轻一点。</p>
+        <p class="sing-source-status" id="singSourceStatus">原声陪唱已经放得很轻。</p>
       </section>
 
       <div class="lyrics-viewport" id="lyricsViewport">
@@ -365,7 +365,7 @@
     <audio id="lyricsHelperAudio" preload="metadata"></audio>
   </section>
 
-  <aside class="floating-player" id="floatingPlayer" aria-label="悬浮播放器">
+  <aside class="floating-player" id="floatingPlayer" aria-label="悬浮播放器，点击歌名进入静听歌词">
     <div class="floating-player-copy">
       <span class="floating-player-label">NOW PLAYING</span>
       <strong id="floatingPlayerTitle">还没有开始播放</strong>
