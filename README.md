@@ -309,6 +309,24 @@ audio/instrumental/da-ben-zhong.mp3
 
 只有文件实际上传并可公开访问后，才填写对应字段。当前尚未上传的可选版本保持空字符串，避免页面请求不存在的 R2 地址。
 
+如果 R2 中还是中文、空格、括号或序号文件名，需要先重命名或重新上传。例如下面这些旧名称：
+
+```text
+周杰伦 - 手写的从前.flac
+周杰伦 - 手写的从前.mp3
+7_周杰伦 - 手写的从前_(Instrumental).mp3
+```
+
+三类目录中都应统一改用英文 MP3 文件名：
+
+```text
+audio/normal/shou-xie-de-cong-qian.mp3
+audio/vocal-low/shou-xie-de-cong-qian.mp3
+audio/instrumental/shou-xie-de-cong-qian.mp3
+```
+
+网页不使用 FLAC，也不会自动转换或猜测音频用途。文件名或目录不一致时，代码路径就无法匹配 R2 文件。
+
 歌曲配置示例：
 
 ```js
