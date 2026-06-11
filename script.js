@@ -695,7 +695,9 @@ function getCurrentAudioField() {
 }
 
 function getSingPlaybackVolume() {
-  if (hasSavedSingVolume) return singVolume;
+  if (hasSavedSingVolume && Number.isFinite(singVolume) && singVolume > 0) {
+    return singVolume;
+  }
   if (singAccompanyMode === "instrumental") return 0.8;
   return currentSong?.vocalReducedAudio ? 0.75 : 0.18;
 }
@@ -775,8 +777,13 @@ function updateAudioDebugPanel() {
     `song: ${currentSong?.title || "(none)"}`,
     `mode: ${currentMode || "normal"}`,
     `sing mode: ${currentMode === "sing" ? singAccompanyMode : "not active"}`,
+    `currentSong.audio: ${currentSong?.audio || "(empty)"}`,
+    `currentSong.vocalReducedAudio: ${currentSong?.vocalReducedAudio || "(empty)"}`,
+    `currentSong.instrumentalAudio: ${currentSong?.instrumentalAudio || "(empty)"}`,
+    `getCurrentAudioSrc(): ${getCurrentAudioSrc() || "(empty)"}`,
+    `getSingAudioSrc(): ${getSingAudioSrc() || "(empty)"}`,
     `audio field: ${getCurrentAudioField() || "(none)"}`,
-    `audio URL: ${audioPlayer.currentSrc || audioPlayer.src || "(empty)"}`,
+    `audioPlayer.src: ${audioPlayer.currentSrc || audioPlayer.src || "(empty)"}`,
     `audio error: ${audioError ? `${audioError.code} ${audioError.message || ""}`.trim() : "none"}`,
     `networkState: ${audioPlayer.networkState}`,
     `readyState: ${audioPlayer.readyState}`,
@@ -839,6 +846,98 @@ async function playCurrentSong() {
     setAudioStatus("播放被拦截了，再轻点一下试试。");
     updatePlayButtonText(false);
   }
+}
+
+function restoreAudioTimeWhenReady(previousTime) {
+  if (!Number.isFinite(previousTime) || previousTime <= 0) return;
+
+  const restoreTime = () => {
+    try {
+      if (Number.isFinite(audioPlayer.duration) && previousTime < audioPlayer.duration) {
+        audioPlayer.currentTime = previousTime;
+      }
+    } catch (error) {
+      console.warn("恢复轻唱进度失败：", error);
+    }
+  };
+
+  if (audioPlayer.readyState >= 1) {
+    restoreTime();
+    return;
+  }
+  audioPlayer.addEventListener("loadedmetadata", restoreTime, { once: true });
+}
+
+function prepareSingAudioSource(src) {
+  if (!src) {
+    setAudioStatus("这首歌还没有可用音频。");
+    return false;
+  }
+
+  const audioUrl = resolveAudioUrl(src);
+  const previousTime = Number.isFinite(audioPlayer.currentTime) ? audioPlayer.currentTime : 0;
+  applyPlaybackVolume();
+
+  if (audioPlayer.src !== audioUrl) {
+    audioPlayer.pause();
+    audioPlayer.src = audioUrl;
+    audioPlayer.load();
+    loadedSongId = currentSong?.id || null;
+    restoreAudioTimeWhenReady(previousTime);
+  }
+
+  updateMediaSession();
+  updateFloatingPlayer();
+  updateAudioDebugPanel();
+  return true;
+}
+
+async function switchAudioSourceAndPlay(src) {
+  if (!src) {
+    setAudioStatus("这首歌还没有可用音频。");
+    return false;
+  }
+
+  const audioUrl = resolveAudioUrl(src);
+  console.log("轻唱模式准备播放 URL：", audioUrl);
+  console.log("当前歌曲：", currentSong?.title);
+  console.log("当前模式：", currentMode);
+  console.log("陪唱模式：", singAccompanyMode);
+
+  if (!prepareSingAudioSource(src)) return false;
+
+  audioPlayer.muted = false;
+  applyPlaybackVolume();
+  console.log("muted:", audioPlayer.muted);
+  console.log("volume:", audioPlayer.volume);
+
+  try {
+    setAudioStatus("音频加载中……");
+    await audioPlayer.play();
+    return true;
+  } catch (error) {
+    console.error("轻唱播放被拦截或失败：", error);
+    setAudioStatus("这首歌准备好了，再轻点一下就能听。");
+    $("#singPlayButton").textContent = "开始轻唱";
+    updateAudioDebugPanel();
+    return false;
+  }
+}
+
+async function startSingPlayback() {
+  if (!currentSong) {
+    setAudioStatus("先选一首歌吧。");
+    return;
+  }
+
+  currentMode = "sing";
+  const src = getSingAudioSrc();
+  if (!src) {
+    setAudioStatus("这首歌还没有可用的轻唱音频。");
+    return;
+  }
+
+  await switchAudioSourceAndPlay(src);
 }
 
 function showMoodChoices() {
@@ -1212,57 +1311,31 @@ function updateSingSourceUi() {
   }
 }
 
-function waitForAudioMetadata() {
-  return new Promise((resolve, reject) => {
-    if (audioPlayer.readyState >= 1) {
-      resolve();
-      return;
-    }
-    const cleanup = () => {
-      audioPlayer.removeEventListener("loadedmetadata", handleLoaded);
-      audioPlayer.removeEventListener("error", handleError);
-    };
-    const handleLoaded = () => {
-      cleanup();
-      resolve();
-    };
-    const handleError = () => {
-      cleanup();
-      reject(audioPlayer.error || new Error("audio metadata error"));
-    };
-    audioPlayer.addEventListener("loadedmetadata", handleLoaded, { once: true });
-    audioPlayer.addEventListener("error", handleError, { once: true });
-  });
-}
-
 async function selectSingSource(mode, force = false) {
   if (!currentSong || (!force && mode === singAccompanyMode)) return;
   if (mode === "instrumental" && !currentSong.instrumentalAudio) {
     singSourceStatus.textContent = "这首还没有伴奏版，先用原声陪唱轻轻跟一下。";
     return;
   }
+
   const wasPlaying = !audioPlayer.paused;
-  const previousTime = Number.isFinite(audioPlayer.currentTime) ? audioPlayer.currentTime : 0;
-  audioPlayer.pause();
+  currentMode = "sing";
   singAccompanyMode = mode;
   updateSingSourceUi();
-  applyPlaybackVolume();
 
   const src = getSingAudioSrc();
-  const audioUrl = resolveAudioUrl(src);
+  if (!src) {
+    setAudioStatus(mode === "vocal"
+      ? "这首歌还没有可用的原声陪唱。"
+      : "这首歌还没有可用的轻唱音频。");
+    return;
+  }
+
   try {
-    if (src && audioPlayer.src !== audioUrl) {
-      audioPlayer.src = audioUrl;
-      audioPlayer.load();
-      loadedSongId = currentSong.id;
-      await waitForAudioMetadata();
-      if (Number.isFinite(audioPlayer.duration) && previousTime < audioPlayer.duration) {
-        audioPlayer.currentTime = previousTime;
-      }
-    }
     if (wasPlaying) {
-      await playCurrentSong();
+      await switchAudioSourceAndPlay(src);
     } else {
+      prepareSingAudioSource(src);
       setAudioStatus("这首歌准备好了，再轻点一下就能听。");
     }
   } catch (error) {
@@ -2130,7 +2203,15 @@ $("#openSingButton").addEventListener("click", openSingMode);
 $("#cardQqButton").addEventListener("click", openQqMusic);
 $("#listenQqButton").addEventListener("click", openQqMusic);
 $("#quietListenBtn").addEventListener("click", togglePlayback);
-$("#singPlayButton").addEventListener("click", togglePlayback);
+$("#singPlayButton").addEventListener("click", async (event) => {
+  event.preventDefault();
+  event.stopPropagation();
+  if (!audioPlayer.paused) {
+    audioPlayer.pause();
+    return;
+  }
+  await startSingPlayback();
+});
 $("#listenPlayMode").addEventListener("change", (event) => setPlayMode(event.target.value));
 $("#singPlayMode").addEventListener("change", (event) => setPlayMode(event.target.value));
 
@@ -2162,7 +2243,11 @@ $$(".sing-atmosphere-button").forEach((button) => {
 });
 
 $$(".sing-source-button").forEach((button) => {
-  button.addEventListener("click", () => selectSingSource(button.dataset.singSource));
+  button.addEventListener("click", async (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    await selectSingSource(button.dataset.singSource);
+  });
 });
 
 singVolumeSlider.addEventListener("input", () => {
