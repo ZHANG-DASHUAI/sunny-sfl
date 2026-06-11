@@ -70,6 +70,7 @@ createSong(
       { time: 0, text: "时间轴歌词第一行" },
       { time: 5.8, text: "时间轴歌词第二行" }
     ],
+    vocalReducedAudio: AUDIO_BASE_URL + "new-song-vocal-low.mp3",
     instrumentalAudio: AUDIO_BASE_URL + "new-song-instrumental.mp3",
     singTips: [
       "不用唱完整，喜欢哪句就唱哪句。",
@@ -89,6 +90,7 @@ createSong(
 - `artist`：歌手，默认是周杰伦。
 - `mood`：心情分类数组。
 - `audio`：Cloudflare R2 公开音频地址。
+- `vocalReducedAudio`：可选的人声降低版 R2 地址，用于原声陪唱。
 - `instrumentalAudio`：可选的 R2 伴奏地址，没有时填写空字符串。
 - `message`：推荐语。
 - `lyricPreview`：静听界面的 3-5 行预览。
@@ -256,8 +258,9 @@ https://你的-pages-域名.pages.dev/?debug=1
 
 ### 原声陪唱
 
-- 播放当前歌曲的 `audio`。
-- 默认音量为 18%，把这一版声音放得很轻，留更多空间给用户唱。
+- 优先播放当前歌曲的 `vocalReducedAudio`，也就是提前处理好的人声降低版。
+- 有人声降低版时默认音量为 75%。
+- 如果 `vocalReducedAudio` 为空，会回退播放普通版 `audio`，默认音量自动降到 18%。
 - “陪唱音量”滑杆支持 0-100% 实时调节，步进为 5%。
 - 用户设置会保存到 `localStorage` 的 `musicBoxSingVolume`，下次进入轻唱时继续使用。
 - 原声陪唱适合跟着熟悉的旋律和节奏唱。
@@ -265,81 +268,49 @@ https://你的-pages-域名.pages.dev/?debug=1
 
 ### 轻伴唱
 
-- 只播放歌曲的 `instrumentalAudio`，默认使用 75% 音量。
-- 没有伴奏版时，“轻伴唱”按钮会显示为“轻伴唱（暂无）”并保持不可用。
-- 没有伴奏版时继续使用原声陪唱，不会尝试弱人声或在线去人声。
-- 陪唱方式保存在 `localStorage` 的 `musicBoxSingAccompanyMode`。
+- 只播放歌曲的 `instrumentalAudio`，默认使用 80% 音量。
+- 没有伴奏版时，“轻伴唱”按钮会显示为“轻伴唱（暂无）”并置灰。
+- 点击暂无伴奏的按钮时，页面会提示先用原声陪唱轻轻跟一下。
+- 不会回退到普通版伪装成伴奏，也不会尝试弱人声或在线去人声。
 - 切换音源时会尽量保留当前播放进度；如果微信阻止继续播放，再点击一次“开始轻唱”即可。
-- 真正没有人声的轻伴唱需要提前制作伴奏版。网页不会自动生成高质量伴奏。
+- 进入轻唱模式时默认选择原声陪唱。
+- 真正没有人声的轻伴唱需要提前制作伴奏版并上传 R2。
 
-### 添加伴奏版
+### 三种音频与 R2 文件名
 
-每首歌曲都具有 `instrumentalAudio` 字段。把你有权使用的伴奏 MP3 上传到 R2 的 `audio/` 目录，例如：
+每首歌可以配置三种音频：
+
+1. `audio`：普通版，用于静听、音乐盒点播和悬浮播放器。
+2. `vocalReducedAudio`：人声降低版，用于轻唱模式的原声陪唱。
+3. `instrumentalAudio`：伴奏版，用于轻唱模式的轻伴唱。
+
+建议统一使用下面的命名：
 
 ```text
-qing-tian-instrumental.mp3
-feng-instrumental.mp3
+普通版：song-id.mp3
+人声降低版：song-id-vocal-low.mp3
+伴奏版：song-id-instrumental.mp3
 ```
 
-然后在歌曲的可选配置中填写：
+例如大笨钟：
+
+```text
+da-ben-zhong.mp3
+da-ben-zhong-vocal-low.mp3
+da-ben-zhong-instrumental.mp3
+```
+
+把本地 `assets/Original vocal recording/` 里的处理版按 `song-id-vocal-low.mp3` 重命名后，上传到 Cloudflare R2 的 `audio/` 目录。把 `assets/Instrumental/` 里的伴奏按 `song-id-instrumental.mp3` 重命名后上传到同一目录。网页只引用 R2 地址，本地音频目录和所有 MP3 都不会提交到 Git。
+
+歌曲配置示例：
 
 ```js
-instrumentalAudio: AUDIO_BASE_URL + "qing-tian-instrumental.mp3"
+audio: AUDIO_BASE_URL + "da-ben-zhong.mp3",
+vocalReducedAudio: AUDIO_BASE_URL + "da-ben-zhong-vocal-low.mp3",
+instrumentalAudio: AUDIO_BASE_URL + "da-ben-zhong-instrumental.mp3"
 ```
 
-`createSong()` 会为每首歌默认生成 `instrumentalAudio: ""`。后续只需上传伴奏 MP3，并在对应歌曲的可选配置中填写 R2 地址。
-
-如果该字段为空，“轻伴唱”不可用，页面会提示先用原声陪唱。项目不做弱人声、不做在线去人声，也不会调用盗版伴奏接口或下载 QQ 音乐音频。请自行准备有权使用的伴奏 MP3，上传到 Cloudflare R2 的 `audio/` 目录后填写 `instrumentalAudio`。
-
-### 安全沉浸环绕
-
-沉浸环绕默认关闭，并且不会读取旧的开启状态。普通播放完全使用原生 `audioPlayer.src` 和 `audioPlayer.play()`，不会创建 `AudioContext`，也不会经过 Web Audio 节点。
-
-只有用户主动点击“沉浸环绕”时，页面才会：
-
-1. 使用 `HEAD` 请求检测当前 R2 音频是否允许 CORS。
-2. 检测通过后记录当前播放时间和播放状态。
-3. 以匿名跨域模式重新加载同一音频并恢复进度。
-4. 单次创建 `MediaElementAudioSourceNode`、`StereoPannerNode` 和 `GainNode`。
-5. 在左右 `-0.28` 到 `0.28` 之间缓慢移动声像。
-
-如果 CORS 检测、Web Audio 初始化或音频恢复任一步失败，页面会提示“这个浏览器暂时不支持环绕，已保持普通播放”，并尽量恢复原来的时间和播放状态。
-
-- 使用浏览器 Web Audio API 的 `MediaElementAudioSourceNode`、`StereoPannerNode` 和 `GainNode`。
-- 声音只会在左右声道之间缓慢、轻微地流动，不会额外放大音量。
-- 这是轻量的氛围效果，不是真正的专业空间音频。
-- 页面加载和普通播放都不会创建或启动 `AudioContext`。
-- 部分微信内置浏览器可能不支持 Web Audio API 或立体声声像控制；不支持时会保持普通播放。
-- 环绕效果不修改 `audioPlayer.volume`，因此不会影响静听音量、原声陪唱 18% 设置、轻伴唱音量、歌词高亮或 R2 音频地址。
-
-因为音频放在 Cloudflare R2、网页部署在 Cloudflare Pages，沉浸环绕需要 R2 开启 CORS。普通播放不依赖 CORS 检测，即使环绕不可用也不影响正常听歌。
-
-R2 CORS 示例：
-
-```json
-[
-  {
-    "AllowedOrigins": [
-      "https://你的项目.pages.dev"
-    ],
-    "AllowedMethods": [
-      "GET",
-      "HEAD"
-    ],
-    "AllowedHeaders": [
-      "*"
-    ],
-    "ExposeHeaders": [
-      "Content-Length",
-      "Content-Type",
-      "Accept-Ranges"
-    ],
-    "MaxAgeSeconds": 3600
-  }
-]
-```
-
-测试阶段可以先把 `AllowedOrigins` 写成 `["*"]`，确认环绕可用后，建议改为自己的 Pages 域名，例如 `https://sunny-sfl.pages.dev`。修改 R2 CORS 后需要等待配置生效，并重新打开页面测试。
+如果 `vocalReducedAudio` 为空，原声陪唱会回退到普通版并自动降低音量。如果 `instrumentalAudio` 为空，轻伴唱按钮会显示暂无。本项目不再提供沉浸环绕，也不做网页实时去人声；人声降低版和伴奏版都需要提前处理并上传到 R2。
 
 手机可以直接打开下面的 R2 音频链接测试：
 
@@ -349,7 +320,7 @@ https://pub-e03989c8338345c4a57d568c8be819c0.r2.dev/audio/da-ben-zhong.mp3
 
 如果单独链接有声音，说明 R2 音频文件正常；如果网页没有声音，应继续检查网页播放链路。
 
-访问 `https://你的域名.pages.dev/?debug=1` 时，调试面板还会显示当前音频 URL、环绕开关、CORS 检测结果、AudioContext 状态、声像节点状态和当前是否处于普通播放。
+访问 `https://你的域名.pages.dev/?debug=1` 时，调试面板会显示当前音频 URL、播放模式、轻唱音源、音量和浏览器音频状态。
 
 ### 本地录一小段
 

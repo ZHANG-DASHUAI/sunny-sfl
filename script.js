@@ -1,5 +1,20 @@
 const AUDIO_BASE_URL = "https://pub-e03989c8338345c4a57d568c8be819c0.r2.dev/audio/";
 const EMPTY_LYRIC = "歌词还没放进来，但歌可以先听。";
+const VOCAL_REDUCED_AUDIO_IDS = new Set([
+  "qing-tian",
+  "ai-ni-wu-cha",
+  "shou-xie-de-cong-qian",
+  "ye-qu",
+  "fa-ru-xue",
+  "ban-dao-tie-he",
+  "deng-ni-xia-ke",
+  "shuo-hao-bu-ku",
+  "da-ben-zhong",
+  "mojito",
+  "cai-hong",
+  "ting-ma-ma-de-hua"
+]);
+const INSTRUMENTAL_AUDIO_IDS = new Set(VOCAL_REDUCED_AUDIO_IDS);
 
 // 新增歌曲时优先使用这个工厂函数，最终得到的数据字段会保持一致。
 function createSong(id, title, mood, audio, message, options = {}) {
@@ -10,7 +25,10 @@ function createSong(id, title, mood, audio, message, options = {}) {
     artist: options.artist || "周杰伦",
     mood,
     audio,
-    instrumentalAudio: options.instrumentalAudio || "",
+    vocalReducedAudio: options.vocalReducedAudio ??
+      (VOCAL_REDUCED_AUDIO_IDS.has(id) ? AUDIO_BASE_URL + `${id}-vocal-low.mp3` : ""),
+    instrumentalAudio: options.instrumentalAudio ??
+      (INSTRUMENTAL_AUDIO_IDS.has(id) ? AUDIO_BASE_URL + `${id}-instrumental.mp3` : ""),
     message,
     // 以下内容都是占位示例，不包含版权歌词。
     lyricPreview: options.lyricPreview || [],
@@ -420,8 +438,6 @@ const singSourceStatus = $("#singSourceStatus");
 const singSourceDescription = $("#singSourceDescription");
 const singVolumeSlider = $("#singVolumeSlider");
 const singVolumeValue = $("#singVolumeValue");
-const surroundToggleButtons = $$("[data-surround-toggle]");
-const surroundStatusElements = $$("[data-surround-status]");
 const recordButton = $("#recordButton");
 const recordingStatus = $("#recordingStatus");
 const recordingDot = $("#recordingDot");
@@ -457,6 +473,7 @@ let currentSource = "mood";
 let wasPlayingBeforeHidden = false;
 let singAccompanyMode = "vocal";
 let singVolume = 0.18;
+let hasSavedSingVolume = false;
 let mediaRecorder = null;
 let recordingStream = null;
 let recordingChunks = [];
@@ -471,24 +488,13 @@ let isManualAdjustingLyrics = false;
 let tappingLineIndex = 0;
 let tapHistory = [];
 let helperIsManualLocked = false;
-let audioContext = null;
-let mediaSourceNode = null;
-let pannerNode = null;
-let gainNode = null;
-let surroundTimer = null;
-let surroundPhase = 0;
-let isSurroundEnabled = false;
-let isSurroundAvailable = true;
-let surroundCorsPassed = null;
 
 const LYRIC_SYNC_INTERVAL = 200;
 const MESSAGE_STORAGE_KEY = "mood-box-pending-messages";
 const LYRICS_STORAGE_PREFIX = "musicBoxLyricsTimed_";
 const LEGACY_LYRICS_STORAGE_PREFIX = "musicBoxLyrics_";
 const PLAY_MODE_STORAGE_KEY = "musicBoxPlayMode";
-const SING_MODE_STORAGE_KEY = "musicBoxSingAccompanyMode";
 const SING_VOLUME_STORAGE_KEY = "musicBoxSingVolume";
-const SURROUND_STORAGE_KEY = "musicBoxSurroundEnabled";
 
 try {
   const savedPlayMode = localStorage.getItem(PLAY_MODE_STORAGE_KEY);
@@ -500,24 +506,18 @@ try {
 }
 
 try {
-  const savedSingMode = localStorage.getItem(SING_MODE_STORAGE_KEY);
-  if (["vocal", "instrumental"].includes(savedSingMode)) {
-    singAccompanyMode = savedSingMode;
-  }
   const savedSingVolumeRaw = localStorage.getItem(SING_VOLUME_STORAGE_KEY);
   if (savedSingVolumeRaw !== null) {
     const savedSingVolume = Number(savedSingVolumeRaw);
     if (Number.isFinite(savedSingVolume) && savedSingVolume >= 0 && savedSingVolume <= 1) {
       singVolume = savedSingVolume;
+      hasSavedSingVolume = true;
     }
   }
 } catch (error) {
   singAccompanyMode = "vocal";
   singVolume = 0.18;
 }
-
-// 环绕功能暂时保持关闭，不读取旧设置，优先保证手机端普通播放稳定。
-isSurroundEnabled = false;
 
 function renderTags(container, moods) {
   container.innerHTML = moods.map((mood) => `<span class="tag">${mood}</span>`).join("");
@@ -667,6 +667,9 @@ function togglePlayMode() {
 function getSingAudioSrc() {
   if (!currentSong) return "";
   if (singAccompanyMode === "instrumental") return currentSong.instrumentalAudio || "";
+  if (singAccompanyMode === "vocal") {
+    return currentSong.vocalReducedAudio || currentSong.audio || "";
+  }
   return currentSong.audio || "";
 }
 
@@ -676,247 +679,14 @@ function getCurrentAudioSrc() {
 }
 
 function getSingPlaybackVolume() {
-  if (singAccompanyMode === "vocal") return singVolume;
-  return currentSong?.instrumentalAudio ? 0.75 : singVolume;
+  if (hasSavedSingVolume) return singVolume;
+  if (singAccompanyMode === "instrumental") return 0.8;
+  return currentSong?.vocalReducedAudio ? 0.75 : 0.18;
 }
 
 function applyPlaybackVolume() {
   audioPlayer.muted = false;
   audioPlayer.volume = currentMode === "sing" ? getSingPlaybackVolume() : 1;
-}
-
-function setSurroundStatus(message) {
-  surroundStatusElements.forEach((element) => {
-    element.textContent = message;
-  });
-}
-
-function updateSurroundUi() {
-  surroundToggleButtons.forEach((button) => {
-    button.textContent = isSurroundAvailable
-      ? (isSurroundEnabled ? "关闭环绕" : "沉浸环绕")
-      : "普通播放中";
-    button.classList.toggle("is-active", isSurroundEnabled);
-    button.setAttribute("aria-pressed", String(isSurroundEnabled));
-  });
-}
-
-function saveSurroundPreference() {
-  try {
-    localStorage.setItem(SURROUND_STORAGE_KEY, isSurroundEnabled ? "true" : "false");
-  } catch (error) {
-    // 本地存储不可用时，当前页面内的环绕开关仍然有效。
-  }
-}
-
-async function canUseSurroundForCurrentAudio() {
-  const src = getCurrentAudioSrc();
-  if (!src) {
-    surroundCorsPassed = false;
-    return false;
-  }
-
-  const url = resolveAudioUrl(src);
-  try {
-    const response = await fetch(url, {
-      method: "HEAD",
-      mode: "cors",
-      cache: "no-store"
-    });
-    surroundCorsPassed = response.ok;
-    updateAudioDebugPanel();
-    return surroundCorsPassed;
-  } catch (error) {
-    surroundCorsPassed = false;
-    console.warn("环绕 CORS 检测失败：", error);
-    updateAudioDebugPanel();
-    return false;
-  }
-}
-
-function fallbackToNormalPlayback(reason) {
-  console.warn("环绕回退普通播放：", reason);
-  isSurroundEnabled = false;
-  isSurroundAvailable = false;
-  stopSurroundEffect();
-  setSurroundStatus("这个浏览器暂时不支持环绕，已保持普通播放。");
-  updateSurroundUi();
-  saveSurroundPreference();
-  updateAudioDebugPanel();
-}
-
-function setupSurroundAudio() {
-  try {
-    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-    if (!AudioContextClass) {
-      fallbackToNormalPlayback("Web Audio API unavailable");
-      return false;
-    }
-
-    if (!audioContext) {
-      audioContext = new AudioContextClass();
-    }
-
-    if (!mediaSourceNode) {
-      if (typeof audioContext.createStereoPanner !== "function") {
-        fallbackToNormalPlayback("StereoPannerNode unavailable");
-        return false;
-      }
-
-      pannerNode = audioContext.createStereoPanner();
-      gainNode = audioContext.createGain();
-      gainNode.gain.value = 1;
-      mediaSourceNode = audioContext.createMediaElementSource(audioPlayer);
-      mediaSourceNode
-        .connect(pannerNode)
-        .connect(gainNode)
-        .connect(audioContext.destination);
-    }
-    isSurroundAvailable = true;
-    return true;
-  } catch (error) {
-    console.error("沉浸环绕初始化失败：", error);
-    fallbackToNormalPlayback(error);
-    return false;
-  }
-}
-
-function stopSurroundEffect() {
-  if (surroundTimer) {
-    window.clearInterval(surroundTimer);
-    surroundTimer = null;
-  }
-  if (pannerNode && audioContext) {
-    pannerNode.pan.setTargetAtTime(0, audioContext.currentTime, 0.25);
-  }
-}
-
-function startSurroundMotion() {
-  if (!pannerNode || !audioContext || surroundTimer) return;
-  surroundTimer = window.setInterval(() => {
-    surroundPhase += 0.012;
-    const panValue = Math.sin(surroundPhase) * 0.28;
-    pannerNode.pan.setTargetAtTime(panValue, audioContext.currentTime, 0.22);
-  }, 120);
-}
-
-function waitForAudioReady() {
-  return new Promise((resolve, reject) => {
-    if (audioPlayer.readyState >= 1) {
-      resolve();
-      return;
-    }
-    const cleanup = () => {
-      audioPlayer.removeEventListener("loadedmetadata", handleReady);
-      audioPlayer.removeEventListener("error", handleError);
-    };
-    const handleReady = () => {
-      cleanup();
-      resolve();
-    };
-    const handleError = () => {
-      cleanup();
-      reject(audioPlayer.error || new Error("audio reload failed"));
-    };
-    audioPlayer.addEventListener("loadedmetadata", handleReady, { once: true });
-    audioPlayer.addEventListener("error", handleError, { once: true });
-  });
-}
-
-async function restoreNormalAudio(audioUrl, oldTime, wasPlaying) {
-  if (mediaSourceNode) {
-    if (pannerNode && audioContext) {
-      pannerNode.pan.setTargetAtTime(0, audioContext.currentTime, 0.15);
-    }
-    if (audioContext?.state === "suspended") {
-      try {
-        await audioContext.resume();
-      } catch (error) {
-        console.warn("恢复 Web Audio 普通声道失败：", error);
-      }
-    }
-    if (wasPlaying && audioPlayer.paused) {
-      try {
-        await audioPlayer.play();
-      } catch (error) {
-        setAudioStatus("普通播放已经准备好，再轻点一下继续听。");
-      }
-    }
-    return;
-  }
-
-  try {
-    audioPlayer.pause();
-    audioPlayer.removeAttribute("crossorigin");
-    audioPlayer.crossOrigin = null;
-    audioPlayer.src = audioUrl;
-    audioPlayer.load();
-    await waitForAudioReady();
-    if (Number.isFinite(audioPlayer.duration) && oldTime < audioPlayer.duration) {
-      audioPlayer.currentTime = oldTime;
-    }
-    if (wasPlaying) await audioPlayer.play();
-  } catch (error) {
-    console.error("恢复普通播放失败：", error);
-    setAudioStatus("普通播放已经准备好，再轻点一下继续听。");
-  }
-}
-
-async function toggleSurround() {
-  if (isSurroundEnabled) {
-    isSurroundEnabled = false;
-    stopSurroundEffect();
-    setSurroundStatus("已经回到普通播放。");
-  } else {
-    if (!currentSong) {
-      setSurroundStatus("先选一首歌，再试试环绕。");
-      return;
-    }
-    if (!audioPlayer.getAttribute("src")) {
-      setSurroundStatus("先轻轻播放一下，再打开环绕会更稳定。");
-      return;
-    }
-
-    isSurroundAvailable = true;
-    const canSurround = await canUseSurroundForCurrentAudio();
-    if (!canSurround) {
-      fallbackToNormalPlayback("R2 CORS check failed");
-      return;
-    }
-
-    const audioUrl = resolveAudioUrl(getCurrentAudioSrc());
-    const wasPlaying = !audioPlayer.paused;
-    const oldTime = Number.isFinite(audioPlayer.currentTime) ? audioPlayer.currentTime : 0;
-
-    try {
-      if (!mediaSourceNode) {
-        audioPlayer.pause();
-        audioPlayer.crossOrigin = "anonymous";
-        audioPlayer.src = audioUrl;
-        audioPlayer.load();
-        await waitForAudioReady();
-        if (Number.isFinite(audioPlayer.duration) && oldTime < audioPlayer.duration) {
-          audioPlayer.currentTime = oldTime;
-        }
-      }
-      if (!setupSurroundAudio()) {
-        await restoreNormalAudio(audioUrl, oldTime, wasPlaying);
-        return;
-      }
-      if (audioContext.state === "suspended") await audioContext.resume();
-      isSurroundEnabled = true;
-      startSurroundMotion();
-      setSurroundStatus("沉浸环绕已打开，声音会轻轻流动。");
-      if (wasPlaying) await audioPlayer.play();
-    } catch (error) {
-      console.error("沉浸环绕启动失败：", error);
-      fallbackToNormalPlayback(error);
-      await restoreNormalAudio(audioUrl, oldTime, wasPlaying);
-    }
-  }
-
-  saveSurroundPreference();
-  updateSurroundUi();
 }
 
 function resolveAudioUrl(src) {
@@ -993,11 +763,8 @@ function updateAudioDebugPanel() {
     `error code: ${errorCode}`,
     `muted: ${audioPlayer.muted}`,
     `volume: ${audioPlayer.volume}`,
-    `surround enabled: ${isSurroundEnabled}`,
-    `surround CORS: ${surroundCorsPassed === null ? "not checked" : surroundCorsPassed}`,
-    `AudioContext: ${audioContext?.state || "not created"}`,
-    `panner created: ${Boolean(pannerNode)}`,
-    `normal playback: ${!isSurroundEnabled}`
+    `mode: ${currentMode || "normal"}`,
+    `sing source: ${currentMode === "sing" ? singAccompanyMode : "not active"}`
   ].join("\n");
 }
 
@@ -1340,7 +1107,6 @@ function openListenMode() {
   renderTags($("#listenTags"), currentSong.mood);
 
   renderLyrics(listenLyricsList, { mode: "listen", compact: true });
-  updateSurroundUi();
   listenLayer.hidden = false;
   hideBottomNav();
   document.body.style.overflow = "hidden";
@@ -1362,14 +1128,7 @@ function openSingMode() {
   if (!currentSong) return;
   listenLayer.hidden = true;
   currentMode = "sing";
-  if (singAccompanyMode === "instrumental" && !currentSong.instrumentalAudio) {
-    singAccompanyMode = "vocal";
-    try {
-      localStorage.setItem(SING_MODE_STORAGE_KEY, singAccompanyMode);
-    } catch (error) {
-      // 本地存储不可用时，当前页面内仍会使用原声陪唱。
-    }
-  }
+  singAccompanyMode = "vocal";
   applyPlaybackVolume();
   $("#singTitle").textContent = currentSong.title;
   const tips = currentSong.singTips.length ? currentSong.singTips : [
@@ -1380,7 +1139,6 @@ function openSingMode() {
     button.classList.toggle("is-active", index === 0);
   });
   updateSingSourceUi();
-  updateSurroundUi();
   renderLyrics(lyricsList, { mode: "sing", compact: false });
   singLayer.hidden = false;
   hideBottomNav();
@@ -1410,27 +1168,27 @@ function updateSingSourceUi() {
   $$(".sing-source-button").forEach((button) => {
     const isUnavailableInstrumental =
       button.dataset.singSource === "instrumental" && !currentSong?.instrumentalAudio;
-    button.disabled = isUnavailableInstrumental;
+    button.classList.toggle("is-unavailable", isUnavailableInstrumental);
+    button.setAttribute("aria-disabled", String(isUnavailableInstrumental));
     button.textContent = isUnavailableInstrumental ? "轻伴唱（暂无）" :
       (button.dataset.singSource === "instrumental" ? "轻伴唱" : "原声陪唱");
     button.classList.toggle("is-active", button.dataset.singSource === singAccompanyMode);
   });
-  const isVocal = singAccompanyMode === "vocal";
-  const volumeControl = singVolumeSlider.closest(".sing-volume-control");
-  const displayedVolume = isVocal ? singVolume : getSingPlaybackVolume();
+  const displayedVolume = getSingPlaybackVolume();
   singVolumeSlider.value = String(displayedVolume);
   singVolumeValue.textContent = `${Math.round(displayedVolume * 100)}%`;
-  singVolumeSlider.disabled = !isVocal;
-  volumeControl?.classList.toggle("is-disabled", !isVocal);
+  singVolumeSlider.disabled = false;
 
   if (singAccompanyMode === "instrumental") {
-    singSourceDescription.textContent = "如果这首有伴奏版，就只留下旋律陪你。";
+    singSourceDescription.textContent = "这一版主要留下旋律和伴奏，声音留给你。";
     singSourceStatus.textContent = "现在是轻伴唱，旋律会多一点，声音留给你。";
   } else {
-    singSourceDescription.textContent = "把这一版声音放得很轻，留更多空间给你唱。";
-    singSourceStatus.textContent = currentSong?.instrumentalAudio
-      ? "原声陪唱已经放得很轻。"
-      : "这首还没有伴奏版，先用原声陪唱轻轻跟一下。";
+    singSourceDescription.textContent = currentSong?.vocalReducedAudio
+      ? "这一版声音已经放轻，留更多空间给你唱。"
+      : "暂时使用普通版低音量陪唱，留更多空间给你唱。";
+    singSourceStatus.textContent = currentSong?.vocalReducedAudio
+      ? "已切换到人声降低版。"
+      : "没有人声降低版，已使用普通版低音量陪唱。";
   }
 }
 
@@ -1467,11 +1225,6 @@ async function selectSingSource(mode, force = false) {
   const previousTime = Number.isFinite(audioPlayer.currentTime) ? audioPlayer.currentTime : 0;
   audioPlayer.pause();
   singAccompanyMode = mode;
-  try {
-    localStorage.setItem(SING_MODE_STORAGE_KEY, singAccompanyMode);
-  } catch (error) {
-    // 存储不可用时，当前页面内仍可切换。
-  }
   updateSingSourceUi();
   applyPlaybackVolume();
 
@@ -2358,9 +2111,6 @@ $("#cardQqButton").addEventListener("click", openQqMusic);
 $("#listenQqButton").addEventListener("click", openQqMusic);
 $("#quietListenBtn").addEventListener("click", togglePlayback);
 $("#singPlayButton").addEventListener("click", togglePlayback);
-surroundToggleButtons.forEach((button) => {
-  button.addEventListener("click", toggleSurround);
-});
 $("#listenPlayMode").addEventListener("change", (event) => setPlayMode(event.target.value));
 $("#singPlayMode").addEventListener("change", (event) => setPlayMode(event.target.value));
 
@@ -2399,13 +2149,14 @@ singVolumeSlider.addEventListener("input", () => {
   const nextVolume = Number(singVolumeSlider.value);
   if (!Number.isFinite(nextVolume)) return;
   singVolume = Math.min(1, Math.max(0, nextVolume));
+  hasSavedSingVolume = true;
   singVolumeValue.textContent = `${Math.round(singVolume * 100)}%`;
   try {
     localStorage.setItem(SING_VOLUME_STORAGE_KEY, String(singVolume));
   } catch (error) {
     // 存储不可用时，当前页面内的音量调节仍然有效。
   }
-  if (currentMode === "sing" && singAccompanyMode === "vocal") {
+  if (currentMode === "sing") {
     audioPlayer.volume = singVolume;
   }
 });
@@ -2689,7 +2440,6 @@ loadSavedLyrics();
 loadTheme();
 renderCatalog();
 setPlayMode(playMode);
-updateSurroundUi();
 startLyricSyncTimer();
 setMediaSessionHandlers();
 updateBottomNavVisibility();
@@ -2699,7 +2449,6 @@ window.addEventListener("beforeunload", () => {
   stopRecordingTracks();
   if (recordingUrl) URL.revokeObjectURL(recordingUrl);
   if (audioDebugTimer !== null) window.clearInterval(audioDebugTimer);
-  stopSurroundEffect();
   stopHelperSyncTimer();
   if (lyricSyncTimer !== null) {
     window.clearInterval(lyricSyncTimer);

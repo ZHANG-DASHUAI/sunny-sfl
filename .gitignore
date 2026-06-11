@@ -1,5 +1,7 @@
 assets/audio/
 *.mp3
 assets/audio_original/
+assets/Original vocal recording/
+assets/Instrumental/
 *.flac
 *.wav
