@@ -3,9 +3,27 @@ const AUDIO_NORMAL_BASE_URL = R2_BASE_URL + "normal/";
 const AUDIO_VOCAL_LOW_BASE_URL = R2_BASE_URL + "vocal-low/";
 const AUDIO_INSTRUMENTAL_BASE_URL = R2_BASE_URL + "instrumental/";
 const EMPTY_LYRIC = "歌词还没放进来，但歌可以先听。";
-// 只有对应文件已上传到 R2 后，才把歌曲 id 加入这些集合。
-const VOCAL_REDUCED_AUDIO_IDS = new Set([]);
-const INSTRUMENTAL_AUDIO_IDS = new Set([]);
+// 只有对应 MP3 已上传到 R2 后，才把歌曲 id 加入这些集合。
+const VOCAL_REDUCED_AUDIO_IDS = new Set([
+  "qing-tian",
+  "shou-xie-de-cong-qian",
+  "ye-qu",
+  "fa-ru-xue",
+  "ban-dao-tie-he",
+  "deng-ni-xia-ke",
+  "shuo-hao-bu-ku",
+  "da-ben-zhong",
+  "cai-hong",
+  "ting-ma-ma-de-hua"
+]);
+const INSTRUMENTAL_AUDIO_IDS = new Set([
+  "shou-xie-de-cong-qian",
+  "fa-ru-xue",
+  "ban-dao-tie-he",
+  "deng-ni-xia-ke",
+  "da-ben-zhong",
+  "cai-hong"
+]);
 
 // 新增歌曲时优先使用这个工厂函数，最终得到的数据字段会保持一致。
 function createSong(id, title, mood, audio, message, options = {}) {

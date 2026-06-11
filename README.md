@@ -332,6 +332,8 @@ https://你的-pages-域名.pages.dev/?debug=1
 
 Codex 不会自动听音频判断内容，只根据字段和 R2 文件夹区分用途。
 
+普通静听版 `normal` 已统一转换为 MP3，网页歌曲数据只使用 `.mp3`，不再引用 FLAC。三类音频都应使用相同的英文 `song-id.mp3` 文件名。
+
 Cloudflare R2 使用三个固定前缀，三类音频保持同一个文件名：
 
 ```text
