@@ -42,7 +42,7 @@ sfl/
 │  └─ convert_flac_to_mp3.ps1
 ```
 
-四个项目文件应放在同一层。网页部署在 Cloudflare Pages，正式播放的 MP3 放在 Cloudflare R2。
+四个项目文件应放在同一层。项目代码放在 GitHub 并由 Cloudflare Pages 部署，正式播放的 MP3 只放在 Cloudflare R2，不提交到 GitHub。
 
 ## 歌曲数据结构
 
@@ -111,7 +111,7 @@ assets/audio_original/  原始 FLAC
 assets/audio/           本地转换后的 MP3 暂存目录
 ```
 
-完成转换后，将 `assets/audio/` 中的 MP3 上传到 Cloudflare R2 的 `audio/` 目录。网页正式播放时只访问 R2，不会请求项目里的本地音频文件。
+完成转换后，将 `assets/audio/` 中的 MP3 上传到 Cloudflare R2 对应目录。`assets/audio/`、`assets/audio_original/`、MP3、FLAC 和 WAV 均被 `.gitignore` 忽略，网页正式播放时不会请求项目里的本地音频文件。
 
 ### 1. 安装并检查 FFmpeg
 
@@ -287,6 +287,8 @@ https://你的-pages-域名.pages.dev/?debug=1
 2. `vocalReducedAudio`：人声降低版，用于轻唱模式的原声陪唱。
 3. `instrumentalAudio`：伴奏版，用于轻唱模式的轻伴唱。
 
+Codex 不会自动听音频判断内容，只根据字段和 R2 文件夹区分用途。
+
 Cloudflare R2 使用三个固定前缀，三类音频保持同一个文件名：
 
 ```text
@@ -304,6 +306,8 @@ audio/instrumental/da-ben-zhong.mp3
 ```
 
 新增歌曲时，把普通版上传到 `audio/normal/`，人声降低版上传到 `audio/vocal-low/`，伴奏版上传到 `audio/instrumental/`。三类文件使用同一个 `song-id.mp3` 文件名。网页只引用 R2 地址，本地音频目录和所有 MP3 都不会提交到 Git。
+
+只有文件实际上传并可公开访问后，才填写对应字段。当前尚未上传的可选版本保持空字符串，避免页面请求不存在的 R2 地址。
 
 歌曲配置示例：
 
@@ -323,15 +327,17 @@ instrumentalAudio: AUDIO_INSTRUMENTAL_BASE_URL + "da-ben-zhong.mp3"
 
 本项目不再提供沉浸环绕，也不做网页实时去人声；人声降低版和伴奏版都需要提前处理并上传到 R2。
 
-手机可以直接打开下面的 R2 音频链接测试：
+手机可以分别直接打开下面的 R2 音频链接测试：
 
 ```text
 https://pub-e03989c8338345c4a57d568c8be819c0.r2.dev/audio/normal/da-ben-zhong.mp3
+https://pub-e03989c8338345c4a57d568c8be819c0.r2.dev/audio/vocal-low/da-ben-zhong.mp3
+https://pub-e03989c8338345c4a57d568c8be819c0.r2.dev/audio/instrumental/da-ben-zhong.mp3
 ```
 
 如果单独链接有声音，说明 R2 音频文件正常；如果网页没有声音，应继续检查网页播放链路。
 
-访问 `https://你的域名.pages.dev/?debug=1` 时，调试面板会显示当前音频 URL、播放模式、轻唱音源、音量和浏览器音频状态。
+访问 `https://你的域名.pages.dev/?debug=1` 时，调试面板会显示当前歌曲、`listen / sing` 模式、`vocal / instrumental` 陪唱模式、实际播放字段、实际 URL、`audioPlayer.error`、`networkState`、`readyState` 和音量。
 
 ### 本地录一小段
 

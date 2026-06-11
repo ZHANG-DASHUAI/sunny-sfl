@@ -3,21 +3,9 @@ const AUDIO_NORMAL_BASE_URL = R2_BASE_URL + "normal/";
 const AUDIO_VOCAL_LOW_BASE_URL = R2_BASE_URL + "vocal-low/";
 const AUDIO_INSTRUMENTAL_BASE_URL = R2_BASE_URL + "instrumental/";
 const EMPTY_LYRIC = "歌词还没放进来，但歌可以先听。";
-const VOCAL_REDUCED_AUDIO_IDS = new Set([
-  "qing-tian",
-  "ai-ni-wu-cha",
-  "shou-xie-de-cong-qian",
-  "ye-qu",
-  "fa-ru-xue",
-  "ban-dao-tie-he",
-  "deng-ni-xia-ke",
-  "shuo-hao-bu-ku",
-  "da-ben-zhong",
-  "mojito",
-  "cai-hong",
-  "ting-ma-ma-de-hua"
-]);
-const INSTRUMENTAL_AUDIO_IDS = new Set(VOCAL_REDUCED_AUDIO_IDS);
+// 只有对应文件已上传到 R2 后，才把歌曲 id 加入这些集合。
+const VOCAL_REDUCED_AUDIO_IDS = new Set([]);
+const INSTRUMENTAL_AUDIO_IDS = new Set([]);
 
 // 新增歌曲时优先使用这个工厂函数，最终得到的数据字段会保持一致。
 function createSong(id, title, mood, audio, message, options = {}) {
@@ -681,6 +669,13 @@ function getCurrentAudioSrc() {
   return currentMode === "sing" ? getSingAudioSrc() : (currentSong.audio || "");
 }
 
+function getCurrentAudioField() {
+  if (!currentSong) return "";
+  if (currentMode !== "sing") return "audio";
+  if (singAccompanyMode === "instrumental") return "instrumentalAudio";
+  return currentSong.vocalReducedAudio ? "vocalReducedAudio" : "audio";
+}
+
 function getSingPlaybackVolume() {
   if (hasSavedSingVolume) return singVolume;
   if (singAccompanyMode === "instrumental") return 0.8;
@@ -748,26 +743,30 @@ function releaseAudioTrack() {
 
 function showAudioDiagnostics(song, targetSrc) {
   console.log("当前歌曲：", song.title);
-  console.log("音频路径：", song.audio);
+  console.log("当前模式：", currentMode || "normal");
+  console.log("陪唱模式：", currentMode === "sing" ? singAccompanyMode : "not active");
+  console.log("实际播放字段：", getCurrentAudioField());
+  console.log("音频路径：", getCurrentAudioSrc());
   console.log("实际请求地址：", targetSrc);
 }
 
 function updateAudioDebugPanel() {
   if (audioDebugPanel.hidden) return;
-  const errorCode = audioPlayer.error ? audioPlayer.error.code : 0;
+  const audioError = audioPlayer.error;
   audioDebugContent.textContent = [
     `song: ${currentSong?.title || "(none)"}`,
-    `src: ${audioPlayer.currentSrc || audioPlayer.src || "(empty)"}`,
+    `mode: ${currentMode || "normal"}`,
+    `sing mode: ${currentMode === "sing" ? singAccompanyMode : "not active"}`,
+    `audio field: ${getCurrentAudioField() || "(none)"}`,
+    `audio URL: ${audioPlayer.currentSrc || audioPlayer.src || "(empty)"}`,
+    `audio error: ${audioError ? `${audioError.code} ${audioError.message || ""}`.trim() : "none"}`,
+    `networkState: ${audioPlayer.networkState}`,
+    `readyState: ${audioPlayer.readyState}`,
     `paused: ${audioPlayer.paused}`,
     `currentTime: ${Number.isFinite(audioPlayer.currentTime) ? audioPlayer.currentTime.toFixed(2) : "NaN"}`,
     `duration: ${Number.isFinite(audioPlayer.duration) ? audioPlayer.duration.toFixed(2) : "NaN"}`,
-    `readyState: ${audioPlayer.readyState}`,
-    `networkState: ${audioPlayer.networkState}`,
-    `error code: ${errorCode}`,
     `muted: ${audioPlayer.muted}`,
-    `volume: ${audioPlayer.volume}`,
-    `mode: ${currentMode || "normal"}`,
-    `sing source: ${currentMode === "sing" ? singAccompanyMode : "not active"}`
+    `volume: ${audioPlayer.volume}`
   ].join("\n");
 }
 
