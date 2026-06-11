@@ -1,4 +1,7 @@
-const AUDIO_BASE_URL = "https://pub-e03989c8338345c4a57d568c8be819c0.r2.dev/audio/";
+const R2_BASE_URL = "https://pub-e03989c8338345c4a57d568c8be819c0.r2.dev/audio/";
+const AUDIO_NORMAL_BASE_URL = R2_BASE_URL + "normal/";
+const AUDIO_VOCAL_LOW_BASE_URL = R2_BASE_URL + "vocal-low/";
+const AUDIO_INSTRUMENTAL_BASE_URL = R2_BASE_URL + "instrumental/";
 const EMPTY_LYRIC = "歌词还没放进来，但歌可以先听。";
 const VOCAL_REDUCED_AUDIO_IDS = new Set([
   "qing-tian",
@@ -26,9 +29,9 @@ function createSong(id, title, mood, audio, message, options = {}) {
     mood,
     audio,
     vocalReducedAudio: options.vocalReducedAudio ??
-      (VOCAL_REDUCED_AUDIO_IDS.has(id) ? AUDIO_BASE_URL + `${id}-vocal-low.mp3` : ""),
+      (VOCAL_REDUCED_AUDIO_IDS.has(id) ? AUDIO_VOCAL_LOW_BASE_URL + `${id}.mp3` : ""),
     instrumentalAudio: options.instrumentalAudio ??
-      (INSTRUMENTAL_AUDIO_IDS.has(id) ? AUDIO_BASE_URL + `${id}-instrumental.mp3` : ""),
+      (INSTRUMENTAL_AUDIO_IDS.has(id) ? AUDIO_INSTRUMENTAL_BASE_URL + `${id}.mp3` : ""),
     message,
     // 以下内容都是占位示例，不包含版权歌词。
     lyricPreview: options.lyricPreview || [],
@@ -52,7 +55,7 @@ const songs = [
     "qing-tian",
     "晴天",
     ["放空", "回忆", "陪伴"],
-    AUDIO_BASE_URL + "qing-tian.mp3",
+    AUDIO_NORMAL_BASE_URL + "qing-tian.mp3",
     "适合在天气不错的时候听，也适合只是随便想起从前。",
     {
       lyricsTimed: [
@@ -114,7 +117,7 @@ const songs = [
     "ai-ni-wu-cha",
     "爱你无差",
     ["甜一点"],
-    AUDIO_BASE_URL + "ai-ni-wu-cha.mp3",
+    AUDIO_NORMAL_BASE_URL + "ai-ni-wu-cha.mp3",
     "旋律温柔但不喧闹，刚好给今天加一点暖意。",
     {
       lyricsTimed: [
@@ -179,7 +182,7 @@ const songs = [
     "shou-xie-de-cong-qian",
     "手写的从前",
     ["陪伴", "回忆"],
-    AUDIO_BASE_URL + "shou-xie-de-cong-qian.mp3",
+    AUDIO_NORMAL_BASE_URL + "shou-xie-de-cong-qian.mp3",
     "适合把旧时光轻轻翻开一页，不打扰，只看看。",
     {
       lyricsTimed: [
@@ -248,12 +251,12 @@ const songs = [
       ]
     }
   ),
-  createSong("ye-qu", "夜曲", ["emo"], AUDIO_BASE_URL + "ye-qu.mp3", "有些歌不用说太多，前奏响起时安静听就好。"),
+  createSong("ye-qu", "夜曲", ["emo"], AUDIO_NORMAL_BASE_URL + "ye-qu.mp3", "有些歌不用说太多，前奏响起时安静听就好。"),
   createSong(
     "fa-ru-xue",
     "发如雪",
     ["放空"],
-    AUDIO_BASE_URL + "fa-ru-xue.mp3",
+    AUDIO_NORMAL_BASE_URL + "fa-ru-xue.mp3",
     "画面感很足的一首，适合戴上耳机慢慢听。",
     {
       lyricsTimed: [
@@ -325,12 +328,12 @@ const songs = [
       ]
     }
   ),
-  createSong("ban-dao-tie-he", "半岛铁盒", ["回忆"], AUDIO_BASE_URL + "ban-dao-tie-he.mp3", "老歌还是耐听，像翻到一件保存很好的旧物。"),
+  createSong("ban-dao-tie-he", "半岛铁盒", ["回忆"], AUDIO_NORMAL_BASE_URL + "ban-dao-tie-he.mp3", "老歌还是耐听，像翻到一件保存很好的旧物。"),
   createSong(
     "deng-ni-xia-ke",
     "等你下课",
     ["甜一点", "陪伴"],
-    AUDIO_BASE_URL + "deng-ni-xia-ke.mp3",
+    AUDIO_NORMAL_BASE_URL + "deng-ni-xia-ke.mp3",
     "适合下午听，给忙碌留一段不被催促的空白。",
     {
       lyricsTimed: [
@@ -391,11 +394,11 @@ const songs = [
       ]
     }
   ),
-  createSong("shuo-hao-bu-ku", "说好不哭", ["emo"], AUDIO_BASE_URL + "shuo-hao-bu-ku.mp3", "旋律很顺，适合下班路上安安静静地听。"),
-  createSong("da-ben-zhong", "大笨钟", ["放空", "甜一点"], AUDIO_BASE_URL + "da-ben-zhong.mp3", "俏皮一点也没关系，普通的一天需要些节奏。"),
-  createSong("mojito", "Mojito", ["放空", "甜一点"], AUDIO_BASE_URL + "mojito.mp3", "节奏轻快，适合给普通的一天换个明亮背景。"),
-  createSong("cai-hong", "彩虹", ["甜一点", "陪伴", "回忆"], AUDIO_BASE_URL + "cai-hong.mp3", "旋律温柔，适合把今天的步子稍微放慢一点。"),
-  createSong("ting-ma-ma-de-hua", "听妈妈的话", ["放空", "陪伴", "回忆"], AUDIO_BASE_URL + "ting-ma-ma-de-hua.mp3", "熟悉又踏实的一首，适合在有点累时听听。")
+  createSong("shuo-hao-bu-ku", "说好不哭", ["emo"], AUDIO_NORMAL_BASE_URL + "shuo-hao-bu-ku.mp3", "旋律很顺，适合下班路上安安静静地听。"),
+  createSong("da-ben-zhong", "大笨钟", ["放空", "甜一点"], AUDIO_NORMAL_BASE_URL + "da-ben-zhong.mp3", "俏皮一点也没关系，普通的一天需要些节奏。"),
+  createSong("mojito", "Mojito", ["放空", "甜一点"], AUDIO_NORMAL_BASE_URL + "mojito.mp3", "节奏轻快，适合给普通的一天换个明亮背景。"),
+  createSong("cai-hong", "彩虹", ["甜一点", "陪伴", "回忆"], AUDIO_NORMAL_BASE_URL + "cai-hong.mp3", "旋律温柔，适合把今天的步子稍微放慢一点。"),
+  createSong("ting-ma-ma-de-hua", "听妈妈的话", ["放空", "陪伴", "回忆"], AUDIO_NORMAL_BASE_URL + "ting-ma-ma-de-hua.mp3", "熟悉又踏实的一首，适合在有点累时听听。")
 ];
 
 const $ = (selector) => document.querySelector(selector);

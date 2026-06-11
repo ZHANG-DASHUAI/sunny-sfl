@@ -53,7 +53,7 @@ createSong(
   "new-song",
   "新歌名",
   ["放空", "陪伴"],
-  AUDIO_BASE_URL + "new-song.mp3",
+  AUDIO_NORMAL_BASE_URL + "new-song.mp3",
   "这里写一句克制、轻松的推荐语。",
   {
     artist: "周杰伦",
@@ -70,8 +70,8 @@ createSong(
       { time: 0, text: "时间轴歌词第一行" },
       { time: 5.8, text: "时间轴歌词第二行" }
     ],
-    vocalReducedAudio: AUDIO_BASE_URL + "new-song-vocal-low.mp3",
-    instrumentalAudio: AUDIO_BASE_URL + "new-song-instrumental.mp3",
+    vocalReducedAudio: AUDIO_VOCAL_LOW_BASE_URL + "new-song.mp3",
+    instrumentalAudio: AUDIO_INSTRUMENTAL_BASE_URL + "new-song.mp3",
     singTips: [
       "不用唱完整，喜欢哪句就唱哪句。",
       "慢慢唱，不用赶。",
@@ -160,7 +160,10 @@ powershell -ExecutionPolicy Bypass -File .\tools\convert_flac_to_mp3.ps1
 网页部署在 Cloudflare Pages，音频统一放在 Cloudflare R2。基础路径在 `script.js` 顶部统一管理：
 
 ```js
-const AUDIO_BASE_URL = "https://pub-e03989c8338345c4a57d568c8be819c0.r2.dev/audio/";
+const R2_BASE_URL = "https://pub-e03989c8338345c4a57d568c8be819c0.r2.dev/audio/";
+const AUDIO_NORMAL_BASE_URL = R2_BASE_URL + "normal/";
+const AUDIO_VOCAL_LOW_BASE_URL = R2_BASE_URL + "vocal-low/";
+const AUDIO_INSTRUMENTAL_BASE_URL = R2_BASE_URL + "instrumental/";
 ```
 
 新增或替换歌曲：
@@ -171,7 +174,7 @@ const AUDIO_BASE_URL = "https://pub-e03989c8338345c4a57d568c8be819c0.r2.dev/audi
 4. 在歌曲数据中填写：
 
 ```js
-audio: AUDIO_BASE_URL + "qing-tian.mp3"
+audio: AUDIO_NORMAL_BASE_URL + "qing-tian.mp3"
 ```
 
 单首音频建议压缩到 **3-8MB**，推荐使用 **MP3 128kbps 或 192kbps**。微信浏览器播放 50MB 左右的大文件很容易等待过久或中断。
@@ -196,7 +199,7 @@ audio: AUDIO_BASE_URL + "qing-tian.mp3"
 先直接在手机浏览器打开：
 
 ```text
-https://pub-e03989c8338345c4a57d568c8be819c0.r2.dev/audio/da-ben-zhong.mp3
+https://pub-e03989c8338345c4a57d568c8be819c0.r2.dev/audio/normal/da-ben-zhong.mp3
 ```
 
 - 如果链接打不开，说明 R2 文件没有公开、文件名错误或目录路径错误。
@@ -206,8 +209,8 @@ https://pub-e03989c8338345c4a57d568c8be819c0.r2.dev/audio/da-ben-zhong.mp3
 
 ```text
 准备播放歌曲：晴天
-歌曲音频地址：https://pub-e03989c8338345c4a57d568c8be819c0.r2.dev/audio/qing-tian.mp3
-实际播放地址：https://pub-e03989c8338345c4a57d568c8be819c0.r2.dev/audio/qing-tian.mp3
+歌曲音频地址：https://pub-e03989c8338345c4a57d568c8be819c0.r2.dev/audio/normal/qing-tian.mp3
+实际播放地址：https://pub-e03989c8338345c4a57d568c8be819c0.r2.dev/audio/normal/qing-tian.mp3
 ```
 
 复制“实际请求地址”到新标签页打开：
@@ -284,38 +287,46 @@ https://你的-pages-域名.pages.dev/?debug=1
 2. `vocalReducedAudio`：人声降低版，用于轻唱模式的原声陪唱。
 3. `instrumentalAudio`：伴奏版，用于轻唱模式的轻伴唱。
 
-建议统一使用下面的命名：
+Cloudflare R2 使用三个固定前缀，三类音频保持同一个文件名：
 
 ```text
-普通版：song-id.mp3
-人声降低版：song-id-vocal-low.mp3
-伴奏版：song-id-instrumental.mp3
+普通版：audio/normal/song-id.mp3
+人声降低版：audio/vocal-low/song-id.mp3
+伴奏版：audio/instrumental/song-id.mp3
 ```
 
 例如大笨钟：
 
 ```text
-da-ben-zhong.mp3
-da-ben-zhong-vocal-low.mp3
-da-ben-zhong-instrumental.mp3
+audio/normal/da-ben-zhong.mp3
+audio/vocal-low/da-ben-zhong.mp3
+audio/instrumental/da-ben-zhong.mp3
 ```
 
-把本地 `assets/Original vocal recording/` 里的处理版按 `song-id-vocal-low.mp3` 重命名后，上传到 Cloudflare R2 的 `audio/` 目录。把 `assets/Instrumental/` 里的伴奏按 `song-id-instrumental.mp3` 重命名后上传到同一目录。网页只引用 R2 地址，本地音频目录和所有 MP3 都不会提交到 Git。
+新增歌曲时，把普通版上传到 `audio/normal/`，人声降低版上传到 `audio/vocal-low/`，伴奏版上传到 `audio/instrumental/`。三类文件使用同一个 `song-id.mp3` 文件名。网页只引用 R2 地址，本地音频目录和所有 MP3 都不会提交到 Git。
 
 歌曲配置示例：
 
 ```js
-audio: AUDIO_BASE_URL + "da-ben-zhong.mp3",
-vocalReducedAudio: AUDIO_BASE_URL + "da-ben-zhong-vocal-low.mp3",
-instrumentalAudio: AUDIO_BASE_URL + "da-ben-zhong-instrumental.mp3"
+audio: AUDIO_NORMAL_BASE_URL + "da-ben-zhong.mp3",
+vocalReducedAudio: AUDIO_VOCAL_LOW_BASE_URL + "da-ben-zhong.mp3",
+instrumentalAudio: AUDIO_INSTRUMENTAL_BASE_URL + "da-ben-zhong.mp3"
 ```
 
-如果 `vocalReducedAudio` 为空，原声陪唱会回退到普通版并自动降低音量。如果 `instrumentalAudio` 为空，轻伴唱按钮会显示暂无。本项目不再提供沉浸环绕，也不做网页实时去人声；人声降低版和伴奏版都需要提前处理并上传到 R2。
+如果某首歌暂时没有人声降低版，请明确填写 `vocalReducedAudio: ""`；如果没有伴奏版，请填写 `instrumentalAudio: ""`。原声陪唱缺少处理版时会回退到普通版并自动降低音量，轻伴唱缺少伴奏版时按钮会显示暂无。
+
+项目不会自动听音频判断类型，而是只通过字段和 R2 文件夹区分用途：
+
+- `audio` 对应 `audio/normal/`
+- `vocalReducedAudio` 对应 `audio/vocal-low/`
+- `instrumentalAudio` 对应 `audio/instrumental/`
+
+本项目不再提供沉浸环绕，也不做网页实时去人声；人声降低版和伴奏版都需要提前处理并上传到 R2。
 
 手机可以直接打开下面的 R2 音频链接测试：
 
 ```text
-https://pub-e03989c8338345c4a57d568c8be819c0.r2.dev/audio/da-ben-zhong.mp3
+https://pub-e03989c8338345c4a57d568c8be819c0.r2.dev/audio/normal/da-ben-zhong.mp3
 ```
 
 如果单独链接有声音，说明 R2 音频文件正常；如果网页没有声音，应继续检查网页播放链路。
