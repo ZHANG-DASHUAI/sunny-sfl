@@ -38,6 +38,7 @@ sfl/
 ├─ script.js           歌曲数据及全部交互
 ├─ README.md           使用说明
 └─ tools/
+│  ├─ convert-normal-flac-to-mp3.bat
 │  ├─ convert_flac_to_mp3.bat
 │  └─ convert_flac_to_mp3.ps1
 ```
@@ -154,6 +155,31 @@ powershell -ExecutionPolicy Bypass -File .\tools\convert_flac_to_mp3.ps1
 - 已存在的同名 MP3 会被覆盖。
 
 推荐使用 MP3 128kbps 或 192kbps，单首尽量控制在 3-8MB。当前脚本固定输出 128kbps；需要 192kbps 时，将脚本中的 `128k` 改成 `192k`。
+
+### 普通静听版 FLAC 转 MP3
+
+如果普通静听版暂存在 `assets/audio/normal/`，请先把其中的 FLAC 转成 MP3，再上传到 Cloudflare R2 的 `audio/normal/`。
+
+运行：
+
+```text
+tools/convert-normal-flac-to-mp3.bat
+```
+
+这个脚本会：
+
+- 读取 `assets/audio/normal/` 中的所有 `.flac` 文件。
+- 转换为 192kbps、44100Hz 的 MP3。
+- 把 MP3 输出到同一个 `assets/audio/normal/` 文件夹。
+- 保留原文件名主体，例如 `qing-tian.flac` 会生成 `qing-tian.mp3`。
+- 保留原始 FLAC，不会删除源文件。
+- 转换完成后显示结果提示。
+
+上传 R2 前，请确保文件名是英文小写、数字和短横线，不含中文、空格或括号。最终将生成的 MP3 上传到：
+
+```text
+audio/normal/
+```
 
 ## Cloudflare R2 音频
 
