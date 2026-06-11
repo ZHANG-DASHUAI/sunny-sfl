@@ -134,19 +134,13 @@ assets/audio_original/
 
 ### 3. 运行转换脚本
 
-Windows 批处理版本：
-
-```text
-tools/convert_flac_to_mp3.bat
-```
-
-PowerShell 版本：
+旧的 PowerShell 版本：
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\tools\convert_flac_to_mp3.ps1
 ```
 
-两个脚本都会：
+这个 PowerShell 脚本会：
 
 - 读取 `assets/audio_original/` 中的所有 FLAC。
 - 转换为 MP3 128kbps、44100Hz。
@@ -154,17 +148,45 @@ powershell -ExecutionPolicy Bypass -File .\tools\convert_flac_to_mp3.ps1
 - 输出到 `assets/audio/`。
 - 已存在的同名 MP3 会被覆盖。
 
-推荐使用 MP3 128kbps 或 192kbps，单首尽量控制在 3-8MB。当前脚本固定输出 128kbps；需要 192kbps 时，将脚本中的 `128k` 改成 `192k`。
+推荐使用 MP3 128kbps 或 192kbps，单首尽量控制在 3-8MB。下面的一键 BAT 脚本固定输出 192kbps；旧 PowerShell 脚本固定输出 128kbps。
 
 ### 普通静听版 FLAC 转 MP3
 
 如果普通静听版暂存在 `assets/audio/normal/`，请先把其中的 FLAC 转成 MP3，再上传到 Cloudflare R2 的 `audio/normal/`。
 
-运行：
+#### 最简单的一键转换
 
-```text
-tools/convert-normal-flac-to-mp3.bat
-```
+1. 先安装 FFmpeg。Windows 可以在终端运行：
+
+   ```powershell
+   winget install -e --id Gyan.FFmpeg
+   ```
+
+2. 安装完成后重新打开终端，检查 FFmpeg：
+
+   ```powershell
+   ffmpeg -version
+   ```
+
+3. 把需要转换的 FLAC 文件放入：
+
+   ```text
+   assets/audio/normal/
+   ```
+
+4. 双击运行：
+
+   ```text
+   tools/convert_flac_to_mp3.bat
+   ```
+
+5. 脚本会在 `assets/audio/normal/` 中生成同名 MP3，只把扩展名从 `.flac` 改为 `.mp3`。转换规格为 192kbps、44100Hz，原 FLAC 不会删除。
+
+6. 把生成的 MP3 上传到 Cloudflare R2：
+
+   ```text
+   audio/normal/
+   ```
 
 这个脚本会：
 
@@ -174,12 +196,7 @@ tools/convert-normal-flac-to-mp3.bat
 - 保留原文件名主体，例如 `qing-tian.flac` 会生成 `qing-tian.mp3`。
 - 保留原始 FLAC，不会删除源文件。
 - 转换完成后显示结果提示。
-
-上传 R2 前，请确保文件名是英文小写、数字和短横线，不含中文、空格或括号。最终将生成的 MP3 上传到：
-
-```text
-audio/normal/
-```
+- 上传 R2 前，请确保文件名是英文小写、数字和短横线，不含中文、空格或括号。
 
 ## Cloudflare R2 音频
 
