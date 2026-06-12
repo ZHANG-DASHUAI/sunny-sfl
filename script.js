@@ -388,9 +388,13 @@ const moodPanel = $("#moodPanel");
 const loadingCard = $("#loadingCard");
 const resultCard = $("#resultCard");
 const resultTags = $("#resultTags");
+const resultKicker = $("#resultKicker");
 const songTitle = $("#songTitle");
 const songArtist = $("#songArtist");
 const songMessage = $("#songMessage");
+const detailDiscButton = $("#detailDiscButton");
+const detailDisc = $("#detailDisc");
+const songDetailStatus = $("#songDetailStatus");
 const record = $("#record");
 const tonearm = $("#tonearm");
 const listenLayer = $("#listenLayer");
@@ -400,8 +404,14 @@ const audioStatus = $("#audioStatus");
 const singAudioStatus = $("#singAudioStatus");
 const listenLyricsViewport = $("#listenLyricsViewport");
 const listenLyricsList = $("#listenLyricsList");
+const songProgress = $("#songProgress");
+const currentTimeText = $("#currentTimeText");
+const durationText = $("#durationText");
 const lyricsViewport = $("#lyricsViewport");
 const lyricsList = $("#lyricsList");
+const singSongProgress = $("#singSongProgress");
+const singCurrentTimeText = $("#singCurrentTimeText");
+const singDurationText = $("#singDurationText");
 const songSearch = $("#songSearch");
 const songList = $("#songList");
 const emptyState = $("#emptyState");
@@ -469,6 +479,7 @@ let recordingBlob = null;
 let recordingUrl = "";
 let audioDebugTimer = null;
 let audioHealthCheckRunning = false;
+let isSeekingAudio = false;
 let helperLyricsText = [];
 let helperTimedLyrics = [];
 let helperActiveIndex = -1;
@@ -613,13 +624,88 @@ function resetPlaybackUi() {
   lyricLineElements.forEach((line) => line.classList.remove("is-active"));
   updatePlayButtonText(false);
   $("#singPlayButton").textContent = "开始轻唱";
+  updateProgressControls();
+  updateDetailDiscState();
   updateFloatingPlayer();
 }
 
 function setAudioStatus(message) {
   audioStatus.textContent = message;
   singAudioStatus.textContent = message;
+  songDetailStatus.textContent = message;
   updateFloatingPlayer(message);
+}
+
+function formatTime(seconds) {
+  if (!Number.isFinite(seconds)) return "0:00";
+  const min = Math.floor(seconds / 60);
+  const sec = Math.floor(seconds % 60);
+  return `${min}:${String(sec).padStart(2, "0")}`;
+}
+
+function getProgressControls() {
+  return [
+    {
+      input: songProgress,
+      current: currentTimeText,
+      duration: durationText
+    },
+    {
+      input: singSongProgress,
+      current: singCurrentTimeText,
+      duration: singDurationText
+    }
+  ];
+}
+
+function updateProgressControls(options = {}) {
+  const duration = Number.isFinite(audioPlayer.duration) && audioPlayer.duration > 0
+    ? audioPlayer.duration
+    : 0;
+  const currentTime = Number.isFinite(audioPlayer.currentTime) ? audioPlayer.currentTime : 0;
+  const percentage = duration > 0 ? Math.min(100, Math.max(0, currentTime / duration * 100)) : 0;
+
+  getProgressControls().forEach(({ input, current, duration: durationLabel }) => {
+    if (!input || !current || !durationLabel) return;
+    input.disabled = duration <= 0;
+    if (!isSeekingAudio || options.force) input.value = String(percentage);
+    current.textContent = formatTime(currentTime);
+    durationLabel.textContent = formatTime(duration);
+  });
+}
+
+function seekFromProgress(input) {
+  const duration = audioPlayer.duration;
+  if (!Number.isFinite(duration) || duration <= 0) return;
+  const percentage = Number(input.value);
+  if (!Number.isFinite(percentage)) return;
+
+  audioPlayer.currentTime = duration * Math.min(100, Math.max(0, percentage)) / 100;
+  isSeekingAudio = false;
+  updateProgressControls({ force: true });
+  syncTimedLyrics();
+}
+
+function bindProgressControl(input, currentLabel) {
+  if (!input || !currentLabel) return;
+  input.addEventListener("input", () => {
+    const duration = audioPlayer.duration;
+    if (!Number.isFinite(duration) || duration <= 0) return;
+    isSeekingAudio = true;
+    currentLabel.textContent = formatTime(duration * Number(input.value) / 100);
+  });
+  input.addEventListener("change", () => seekFromProgress(input));
+  input.addEventListener("blur", () => {
+    if (isSeekingAudio) seekFromProgress(input);
+  });
+}
+
+function updateDetailDiscState() {
+  if (!detailDisc) return;
+  detailDisc.classList.toggle(
+    "is-playing",
+    Boolean(currentSong && !audioPlayer.paused && !audioPlayer.ended)
+  );
 }
 
 function updatePlayButtonText(isPlaying) {
@@ -1199,6 +1285,16 @@ function rememberCurrentSong(nextSong, shouldRemember = true) {
   if (playHistory.length > 30) playHistory = playHistory.slice(-30);
 }
 
+function renderSongDetail(song, source = currentSource) {
+  songTitle.textContent = song.title;
+  songArtist.textContent = song.artist;
+  songMessage.textContent = song.message;
+  renderTags(resultTags, song.mood);
+  resultKicker.textContent = source === "library" ? "歌曲详情" : "今日抽到";
+  $("#againButton").hidden = source === "library";
+  updateDetailDiscState();
+}
+
 function setCurrentSong(song, sourceMood = song.mood[0], source = "mood", options = {}) {
   closeModes();
   const isSongChanged = !currentSong || currentSong.id !== song.id;
@@ -1211,10 +1307,7 @@ function setCurrentSong(song, sourceMood = song.mood[0], source = "mood", option
   currentSource = source;
   updateMediaSession();
   updateBackButton();
-  songTitle.textContent = song.title;
-  songArtist.textContent = song.artist;
-  songMessage.textContent = song.message;
-  renderTags(resultTags, song.mood);
+  renderSongDetail(song, source);
   moodPanel.hidden = true;
   loadingCard.hidden = true;
   resultCard.hidden = false;
@@ -1239,6 +1332,30 @@ async function selectSongAndPlay(song, source, sourceMood = song.mood[0]) {
   }
 }
 
+// 音乐盒点歌先停留在歌曲详情页，保留用户点击触发的直接播放能力。
+async function selectSongDetailAndPlay(song) {
+  currentMode = "listen";
+  currentPlaybackContext = "listen";
+  setCurrentSong(song, song.mood[0], "library");
+  try {
+    const played = await playCurrentSong();
+    if (!played) setAudioStatus("这首歌准备好了，再轻点一下就能听。");
+  } catch (error) {
+    // 统一播放函数已经显示适合用户阅读的提示。
+  }
+}
+
+function openLyricPageFromDisc() {
+  if (!currentSong) return;
+  if (currentPlaybackContext === "sing" || currentMode === "sing") {
+    openSingMode({ preserveAccompaniment: true });
+  } else {
+    openListenMode();
+  }
+  updateProgressControls({ force: true });
+  syncTimedLyrics();
+}
+
 function renderCurrentSongWithoutClosingMode(song, options = {}) {
   const listenWasOpen = !listenLayer.hidden;
   const singWasOpen = !singLayer.hidden;
@@ -1248,10 +1365,7 @@ function renderCurrentSongWithoutClosingMode(song, options = {}) {
   releaseAudioTrack();
   currentSong = song;
   selectedMood = sourceMood;
-  songTitle.textContent = song.title;
-  songArtist.textContent = song.artist;
-  songMessage.textContent = song.message;
-  renderTags(resultTags, song.mood);
+  renderSongDetail(song);
 
   activeLyricIndex = -1;
   if (listenWasOpen) openListenMode({ updatePlaybackContext: false });
@@ -1376,6 +1490,8 @@ async function handleAudioEnded() {
   updatePlayButtonText(false);
   $("#singPlayButton").textContent = "开始轻唱";
   updateMediaPlaybackState("none");
+  updateDetailDiscState();
+  updateProgressControls({ force: true });
   updateFloatingPlayer();
 
   if (playMode === "repeat-one") {
@@ -1544,6 +1660,7 @@ function openListenMode(options = {}) {
   renderTags($("#listenTags"), currentSong.mood);
 
   renderLyrics(listenLyricsList, { mode: "listen", compact: true });
+  updateProgressControls({ force: true });
   listenLayer.hidden = false;
   hideBottomNav();
   document.body.style.overflow = "hidden";
@@ -1586,6 +1703,7 @@ function openSingMode(options = {}) {
   });
   updateSingSourceUi();
   renderLyrics(lyricsList, { mode: "sing", compact: false });
+  updateProgressControls({ force: true });
   singLayer.hidden = false;
   hideBottomNav();
   document.body.style.overflow = "hidden";
@@ -2530,7 +2648,9 @@ $("#resultBackButton").addEventListener("click", () => {
   }
 });
 $("#openListenButton").addEventListener("click", async () => {
-  openListenMode();
+  currentMode = "listen";
+  currentPlaybackContext = "listen";
+  applyPlaybackVolume();
   try {
     await playCurrentSong();
   } catch (error) {
@@ -2538,6 +2658,7 @@ $("#openListenButton").addEventListener("click", async () => {
   }
 });
 $("#openSingButton").addEventListener("click", openSingMode);
+detailDiscButton.addEventListener("click", openLyricPageFromDisc);
 $("#cardQqButton").addEventListener("click", openQqMusic);
 $("#listenQqButton").addEventListener("click", openQqMusic);
 $("#quietListenBtn").addEventListener("click", togglePlayback);
@@ -2662,9 +2783,12 @@ songList.addEventListener("click", (event) => {
   const song = songs.find((entry) => entry.id === item.dataset.songId);
   if (!song) return;
   switchView("draw");
-  selectSongAndPlay(song, "library", song.mood[0]);
+  selectSongDetailAndPlay(song);
   resultCard.scrollIntoView({ behavior: "smooth", block: "nearest" });
 });
+
+bindProgressControl(songProgress, currentTimeText);
+bindProgressControl(singSongProgress, singCurrentTimeText);
 
 audioPlayer.addEventListener("loadstart", () => {
   setAudioStatus("音频加载中……");
@@ -2676,10 +2800,15 @@ audioPlayer.addEventListener("pause", () => {
   updatePlayButtonText(false);
   $("#singPlayButton").textContent = "开始轻唱";
   updateMediaPlaybackState("paused");
+  updateDetailDiscState();
   updateFloatingPlayer();
 });
 
 audioPlayer.addEventListener("ended", handleAudioEnded);
+
+audioPlayer.addEventListener("timeupdate", () => {
+  if (!isSeekingAudio) updateProgressControls();
+});
 
 audioPlayer.addEventListener("waiting", () => {
   setAudioStatus("音频加载中……");
@@ -2695,6 +2824,7 @@ audioPlayer.addEventListener("canplay", () => {
 });
 
 audioPlayer.addEventListener("loadedmetadata", () => {
+  updateProgressControls({ force: true });
   syncTimedLyrics();
 });
 
@@ -2703,6 +2833,7 @@ audioPlayer.addEventListener("playing", () => {
   updatePlayButtonText(true);
   $("#singPlayButton").textContent = "先停一下";
   updateMediaPlaybackState("playing");
+  updateDetailDiscState();
   updateFloatingPlayer();
   updateAudioDebugPanel();
 });
@@ -2723,6 +2854,8 @@ audioPlayer.addEventListener("error", () => {
   $("#quietListenBtn").textContent = "重新加载音频";
   $("#singPlayButton").textContent = "重新加载音频";
   loadedSongId = null;
+  updateDetailDiscState();
+  updateProgressControls({ force: true });
   updateFloatingPlayer();
   updateAudioDebugPanel();
 });
@@ -2892,6 +3025,7 @@ renderCatalog();
 setPlayMode(playMode);
 startLyricSyncTimer();
 setMediaSessionHandlers();
+updateProgressControls({ force: true });
 updateBottomNavVisibility();
 initializeAudioDebugPanel();
 

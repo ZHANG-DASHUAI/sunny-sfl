@@ -115,12 +115,23 @@
         <article class="result-card" id="resultCard" hidden aria-live="polite">
           <button class="result-back-button" id="resultBackButton" type="button">← 换个心情</button>
           <div class="result-heading">
-            <span class="result-kicker">今日抽到</span>
+            <span class="result-kicker" id="resultKicker">今日抽到</span>
             <div class="tag-row" id="resultTags"></div>
           </div>
           <h2 id="songTitle">晴天</h2>
           <p class="artist" id="songArtist">周杰伦</p>
           <p class="recommendation" id="songMessage"></p>
+
+          <button class="music-disc-card" id="detailDiscButton" type="button" aria-label="打开当前歌曲歌词">
+            <span class="detail-disc" id="detailDisc" aria-hidden="true">
+              <span class="detail-disc-label">MOOD<br>BOX</span>
+            </span>
+            <span class="music-disc-copy">
+              <strong>音乐盘</strong>
+              <small>点一下音乐盘，看歌词</small>
+            </span>
+          </button>
+          <p class="audio-status detail-audio-status" id="songDetailStatus" aria-live="polite"></p>
 
           <div class="mode-buttons">
             <button class="primary-button" id="openListenButton" type="button">静听</button>
@@ -183,6 +194,11 @@
       <div class="listen-lyrics" id="listenLyricsViewport">
         <div class="listen-lyrics-list" id="listenLyricsList"></div>
       </div>
+      <div class="progress-wrap" data-progress-control>
+        <span id="currentTimeText">0:00</span>
+        <input id="songProgress" type="range" min="0" max="100" value="0" step="0.1" aria-label="静听播放进度">
+        <span id="durationText">0:00</span>
+      </div>
       <p class="audio-status" id="audioStatus" aria-live="polite"></p>
       <label class="play-mode-control">
         <span>听完以后</span>
@@ -241,6 +257,11 @@
 
       <div class="lyrics-viewport" id="lyricsViewport">
         <div class="lyrics-list" id="lyricsList"></div>
+      </div>
+      <div class="progress-wrap" data-progress-control>
+        <span id="singCurrentTimeText">0:00</span>
+        <input id="singSongProgress" type="range" min="0" max="100" value="0" step="0.1" aria-label="轻唱播放进度">
+        <span id="singDurationText">0:00</span>
       </div>
       <p class="audio-status" id="singAudioStatus" aria-live="polite"></p>
       <label class="play-mode-control">
