@@ -3,35 +3,6 @@ const AUDIO_NORMAL_BASE_URL = R2_BASE_URL + "normal/";
 const AUDIO_VOCAL_LOW_BASE_URL = R2_BASE_URL + "vocal-low/";
 const AUDIO_INSTRUMENTAL_BASE_URL = R2_BASE_URL + "instrumental/";
 const EMPTY_LYRIC = "歌词还没放进来，但歌可以先听。";
-// 只有对应 MP3 已上传到 R2 后，才把歌曲 id 加入这些集合。
-const VOCAL_REDUCED_AUDIO_IDS = new Set([
-  "qing-tian",
-  "ai-ni-wu-cha",
-  "shou-xie-de-cong-qian",
-  "ye-qu",
-  "fa-ru-xue",
-  "ban-dao-tie-he",
-  "deng-ni-xia-ke",
-  "shuo-hao-bu-ku",
-  "da-ben-zhong",
-  "mojito",
-  "cai-hong",
-  "ting-ma-ma-de-hua"
-]);
-const INSTRUMENTAL_AUDIO_IDS = new Set([
-  "qing-tian",
-  "ai-ni-wu-cha",
-  "shou-xie-de-cong-qian",
-  "ye-qu",
-  "fa-ru-xue",
-  "ban-dao-tie-he",
-  "deng-ni-xia-ke",
-  "shuo-hao-bu-ku",
-  "da-ben-zhong",
-  "mojito",
-  "cai-hong",
-  "ting-ma-ma-de-hua"
-]);
 
 // 新增歌曲时优先使用这个工厂函数，最终得到的数据字段会保持一致。
 function createSong(id, title, mood, audio, message, options = {}) {
@@ -43,9 +14,9 @@ function createSong(id, title, mood, audio, message, options = {}) {
     mood,
     audio,
     vocalReducedAudio: options.vocalReducedAudio ??
-      (VOCAL_REDUCED_AUDIO_IDS.has(id) ? AUDIO_VOCAL_LOW_BASE_URL + `${id}.mp3` : ""),
+      AUDIO_VOCAL_LOW_BASE_URL + `${id}.mp3`,
     instrumentalAudio: options.instrumentalAudio ??
-      (INSTRUMENTAL_AUDIO_IDS.has(id) ? AUDIO_INSTRUMENTAL_BASE_URL + `${id}.mp3` : ""),
+      AUDIO_INSTRUMENTAL_BASE_URL + `${id}.mp3`,
     message,
     // 以下内容都是占位示例，不包含版权歌词。
     lyricPreview: options.lyricPreview || [],
@@ -68,9 +39,9 @@ const songs = [
   createSong(
     "qing-tian",
     "晴天",
-    ["放空", "回忆", "陪伴"],
+    ["想放空一下", "想回到从前", "想被安静陪着"],
     AUDIO_NORMAL_BASE_URL + "qing-tian.mp3",
-    "适合在天气不错的时候听，也适合只是随便想起从前。",
+    "适合天气不错的时候听，也适合假装只是随便想起从前。",
     {
       lyricsTimed: [
         { time: 0, text: "晴天 - 周杰伦 (Jay Chou)" },
@@ -130,7 +101,7 @@ const songs = [
   createSong(
     "ai-ni-wu-cha",
     "爱你无差",
-    ["甜", "陪伴"],
+    ["想听甜一点", "想被安静陪着"],
     AUDIO_NORMAL_BASE_URL + "ai-ni-wu-cha.mp3",
     "适合轻松一点的时候听，像把心情放软一点。",
     {
@@ -199,7 +170,7 @@ const songs = [
   createSong(
     "shou-xie-de-cong-qian",
     "手写的从前",
-    ["陪伴", "回忆"],
+    ["想被安静陪着", "想回到从前"],
     AUDIO_NORMAL_BASE_URL + "shou-xie-de-cong-qian.mp3",
     "适合把旧时光轻轻翻开一页，不打扰，只看看。",
     {
@@ -272,7 +243,7 @@ const songs = [
   createSong(
     "ye-qu",
     "夜曲",
-    ["emo"],
+    ["有点 emo"],
     AUDIO_NORMAL_BASE_URL + "ye-qu.mp3",
     "有些歌不用说太多，前奏响起时安静听就好。",
     {
@@ -350,9 +321,9 @@ const songs = [
   createSong(
     "fa-ru-xue",
     "发如雪",
-    ["放空"],
+    ["想被安静陪着", "有点 emo"],
     AUDIO_NORMAL_BASE_URL + "fa-ru-xue.mp3",
-    "画面感很足的一首，适合戴上耳机慢慢听。",
+    "适合安静听一点旧梦，旋律像雪落下来。",
     {
       lyricsTimed: [
         { time: 0, text: "发如雪 - 周杰伦 (Jay Chou)" },
@@ -426,9 +397,9 @@ const songs = [
   createSong(
     "ban-dao-tie-he",
     "半岛铁盒",
-    ["回忆"],
+    ["想回到从前", "有点 emo"],
     AUDIO_NORMAL_BASE_URL + "ban-dao-tie-he.mp3",
-    "老歌还是耐听，像翻到一件保存很好的旧物。",
+    "适合翻旧回忆的时候听，像打开一个有点生锈的盒子。",
     {
       lyricsTimed: [
         { time: 0, text: "半岛铁盒 - 周杰伦 (Jay Chou)" },
@@ -526,9 +497,9 @@ const songs = [
   createSong(
     "deng-ni-xia-ke",
     "等你下课",
-    ["甜一点", "陪伴"],
+    ["想回到从前", "想被安静陪着"],
     AUDIO_NORMAL_BASE_URL + "deng-ni-xia-ke.mp3",
-    "适合下午听，给忙碌留一段不被催促的空白。",
+    "适合想起校园和等待的时候，像一段没催促的陪伴。",
     {
       lyricsTimed: [
         { time: 0, text: "等你下课(with 杨瑞代) - 周杰伦 (Jay Chou)" },
@@ -591,7 +562,7 @@ const songs = [
   createSong(
     "shuo-hao-bu-ku",
     "说好不哭",
-    ["emo"],
+    ["有点 emo"],
     AUDIO_NORMAL_BASE_URL + "shuo-hao-bu-ku.mp3",
     "旋律很顺，适合下班路上安安静静地听。",
     {
@@ -640,9 +611,9 @@ const songs = [
   createSong(
     "da-ben-zhong",
     "大笨钟",
-    ["放空", "甜一点"],
+    ["想听甜一点", "想放空一下"],
     AUDIO_NORMAL_BASE_URL + "da-ben-zhong.mp3",
-    "俏皮一点也没关系，普通的一天需要些节奏。",
+    "适合可爱一点的心情，像开个小玩笑。",
     {
       lyricsTimed: [
         { time: 0, text: "大笨钟 - 周杰伦 (Jay Chou)" },
@@ -691,7 +662,7 @@ const songs = [
   createSong(
     "mojito",
     "Mojito",
-    ["甜", "放空"],
+    ["想放空一下", "想听甜一点"],
     AUDIO_NORMAL_BASE_URL + "mojito.mp3",
     "适合轻快一点的心情，像空气里有一点甜。",
     {
@@ -741,9 +712,9 @@ const songs = [
   createSong(
     "cai-hong",
     "彩虹",
-    ["甜一点", "陪伴", "回忆"],
+    ["想被安静陪着", "想听甜一点"],
     AUDIO_NORMAL_BASE_URL + "cai-hong.mp3",
-    "旋律温柔，适合把今天的步子稍微放慢一点。",
+    "适合想被温柔陪一下的时候，像雨后慢慢出现的光。",
     {
       lyricsTimed: [
         { time: 0, text: "彩虹 - 周杰伦 (Jay Chou)" },
@@ -790,7 +761,43 @@ const songs = [
       ]
     }
   ),
-  createSong("ting-ma-ma-de-hua", "听妈妈的话", ["放空", "陪伴", "回忆"], AUDIO_NORMAL_BASE_URL + "ting-ma-ma-de-hua.mp3", "熟悉又踏实的一首，适合在有点累时听听。")
+  createSong("ting-ma-ma-de-hua", "听妈妈的话", ["想被安静陪着", "想放空一下"], AUDIO_NORMAL_BASE_URL + "ting-ma-ma-de-hua.mp3", "适合想回到简单一点的状态，被温柔提醒一下。"),
+  createSong("ai-zai-xi-yuan-qian", "爱在西元前", ["想回到从前", "想被安静陪着"], AUDIO_NORMAL_BASE_URL + "ai-zai-xi-yuan-qian.mp3", "适合把故事慢慢翻开，像听一段很远很远的浪漫。"),
+  createSong("an-hao", "暗号", ["想听甜一点", "想回到从前", "想被安静陪着"], AUDIO_NORMAL_BASE_URL + "an-hao.mp3", "适合那些只有自己懂的小心思，像一句没说破的暗号。"),
+  createSong("ben-cao-gang-mu", "本草纲目", ["想放空一下"], AUDIO_NORMAL_BASE_URL + "ben-cao-gang-mu.mp3", "适合把脑袋里的烦恼晃掉一点，节奏一来心情就松了。"),
+  createSong("bu-gai", "不该", ["有点 emo", "想被安静陪着"], AUDIO_NORMAL_BASE_URL + "bu-gai.mp3", "适合有点遗憾的时候听，像把没说完的话轻轻放下。"),
+  createSong("bu-neng-shuo-de-mi-mi", "不能说的秘密", ["想回到从前", "想被安静陪着"], AUDIO_NORMAL_BASE_URL + "bu-neng-shuo-de-mi-mi.mp3", "适合藏一点心事的时候听，不用解释，旋律会懂。"),
+  createSong("dao-xiang", "稻香", ["想放空一下", "想被安静陪着"], AUDIO_NORMAL_BASE_URL + "dao-xiang.mp3", "适合想被轻轻拉一把的时候，慢慢找回一点力气。"),
+  createSong("dong-feng-po", "东风破", ["想被安静陪着", "想回到从前"], AUDIO_NORMAL_BASE_URL + "dong-feng-po.mp3", "适合安静一点的时刻，像风吹过旧院子。"),
+  createSong("fan-fang-xiang-de-zhong", "反方向的钟", ["有点 emo", "想回到从前"], AUDIO_NORMAL_BASE_URL + "fan-fang-xiang-de-zhong.mp3", "适合想把时间倒回一点点的时候，哪怕只是在歌里。"),
+  createSong("feng", "枫", ["有点 emo", "想被安静陪着", "想回到从前"], AUDIO_NORMAL_BASE_URL + "feng.mp3", "适合风慢慢吹的时候听，心事也可以慢慢落下。"),
+  createSong("gao-bai-qi-qiu", "告白气球", ["想听甜一点", "想放空一下"], AUDIO_NORMAL_BASE_URL + "gao-bai-qi-qiu.mp3", "适合甜一点的心情，像空气里飘着一点点糖。"),
+  createSong("gei-wo-yi-shou-ge-de-shi-jian", "给我一首歌的时间", ["有点 emo", "想被安静陪着", "想回到从前"], AUDIO_NORMAL_BASE_URL + "gei-wo-yi-shou-ge-de-shi-jian.mp3", "适合想多停留一会儿的时候，听完这一首再说。"),
+  createSong("ge-qian", "搁浅", ["有点 emo", "想被安静陪着"], AUDIO_NORMAL_BASE_URL + "ge-qian.mp3", "适合情绪停在半路的时候，不急着往前，也不急着回头。"),
+  createSong("gui-ji", "轨迹", ["有点 emo", "想回到从前", "想被安静陪着"], AUDIO_NORMAL_BASE_URL + "gui-ji.mp3", "适合回头看一眼走过的路，温柔一点就好。"),
+  createSong("hong-chen-ke-zhan", "红尘客栈", ["想被安静陪着", "想回到从前"], AUDIO_NORMAL_BASE_URL + "hong-chen-ke-zhan.mp3", "适合有点故事感的心情，像风从旧路吹过。"),
+  createSong("hua-hai", "花海", ["想被安静陪着", "想回到从前"], AUDIO_NORMAL_BASE_URL + "hua-hai.mp3", "适合温柔一点的时候听，像风吹过一片花海。"),
+  createSong("jian-dan-ai", "简单爱", ["想听甜一点", "想放空一下", "想回到从前"], AUDIO_NORMAL_BASE_URL + "jian-dan-ai.mp3", "适合把喜欢说得简单一点，轻轻松松就很好。"),
+  createSong("jie-kou", "借口", ["有点 emo", "想被安静陪着"], AUDIO_NORMAL_BASE_URL + "jie-kou.mp3", "适合有点嘴硬的时候听，不用急着解释。"),
+  createSong("lan-ting-xu", "兰亭序", ["想被安静陪着"], AUDIO_NORMAL_BASE_URL + "lan-ting-xu.mp3", "适合想安静下来时听，字句像墨慢慢晕开。"),
+  createSong("long-juan-feng", "龙卷风", ["有点 emo", "想回到从前"], AUDIO_NORMAL_BASE_URL + "long-juan-feng.mp3", "适合情绪被吹乱的时候，听完再慢慢整理。"),
+  createSong("ming-ming-jiu", "明明就", ["有点 emo", "想被安静陪着"], AUDIO_NORMAL_BASE_URL + "ming-ming-jiu.mp3", "适合有点放不下的时候，明明懂，却还是想听完。"),
+  createSong("pu-gong-ying-de-yue-ding", "蒲公英的约定", ["想回到从前", "想被安静陪着"], AUDIO_NORMAL_BASE_URL + "pu-gong-ying-de-yue-ding.mp3", "适合想起从前的时候，像蒲公英轻轻散开。"),
+  createSong("qi-li-xiang", "七里香", ["想听甜一点", "想放空一下", "想回到从前"], AUDIO_NORMAL_BASE_URL + "qi-li-xiang.mp3", "适合清新的心情，像风里有一点夏天的味道。"),
+  createSong("qing-hua-ci", "青花瓷", ["想被安静陪着"], AUDIO_NORMAL_BASE_URL + "qing-hua-ci.mp3", "适合慢慢听，像一幅淡淡的青花。"),
+  createSong("shan-hu-hai", "珊瑚海", ["有点 emo", "想被安静陪着"], AUDIO_NORMAL_BASE_URL + "shan-hu-hai.mp3", "适合有些没说完的心情，像潮水慢慢退去。"),
+  createSong("shuo-hao-de-xing-fu-ne", "说好的幸福呢", ["有点 emo", "想被安静陪着"], AUDIO_NORMAL_BASE_URL + "shuo-hao-de-xing-fu-ne.mp3", "适合安静听完，不用假装没关系。"),
+  createSong("shuo-le-zai-jian", "说了再见", ["有点 emo", "想回到从前"], AUDIO_NORMAL_BASE_URL + "shuo-le-zai-jian.mp3", "适合想告别又还没完全放下的时候听。"),
+  createSong("suan-shen-me-nan-ren", "算什么男人", ["有点 emo"], AUDIO_NORMAL_BASE_URL + "suan-shen-me-nan-ren.mp3", "适合情绪有点上来的时候，先让歌替你说完。"),
+  createSong("tian-tian-de", "甜甜的", ["想听甜一点", "想放空一下"], AUDIO_NORMAL_BASE_URL + "tian-tian-de.mp3", "适合心情软软的时候听，像一口甜甜的气泡水。"),
+  createSong("tui-hou", "退后", ["有点 emo", "想被安静陪着"], AUDIO_NORMAL_BASE_URL + "tui-hou.mp3", "适合想慢慢退回安全距离的时候听。"),
+  createSong("wo-liu-lei-qing-xu-ling-sui", "我落泪情绪零碎", ["有点 emo", "想被安静陪着"], AUDIO_NORMAL_BASE_URL + "wo-liu-lei-qing-xu-ling-sui.mp3", "适合情绪有点碎的时候，不用急着拼好。"),
+  createSong("wo-shi-ru-ci-xiang-xin", "我是如此相信", ["想被安静陪着", "想放空一下"], AUDIO_NORMAL_BASE_URL + "wo-shi-ru-ci-xiang-xin.mp3", "适合需要一点信念的时候，慢慢把心放稳。"),
+  createSong("xing-qing", "星晴", ["想听甜一点", "想放空一下", "想回到从前"], AUDIO_NORMAL_BASE_URL + "xing-qing.mp3", "适合阳光刚好的时候，心情也跟着亮一点。"),
+  createSong("yan-hua-yi-leng", "烟花易冷", ["有点 emo", "想被安静陪着"], AUDIO_NORMAL_BASE_URL + "yan-hua-yi-leng.mp3", "适合安静听，像一场慢慢落下的烟火。"),
+  createSong("yi-fu-zhi-ming", "以父之名", ["想放空一下"], AUDIO_NORMAL_BASE_URL + "yi-fu-zhi-ming.mp3", "适合想听一点电影感的时候，氛围一下就来了。"),
+  createSong("yi-lu-xiang-bei", "一路向北", ["有点 emo", "想回到从前"], AUDIO_NORMAL_BASE_URL + "yi-lu-xiang-bei.mp3", "适合一个人往前走的时候，风会替你说话。"),
+  createSong("zui-chang-de-dian-ying", "最长的电影", ["有点 emo", "想被安静陪着", "想回到从前"], AUDIO_NORMAL_BASE_URL + "zui-chang-de-dian-ying.mp3", "适合像看完一场旧电影那样，慢慢收尾。")
 ];
 
 const $ = (selector) => document.querySelector(selector);
@@ -1956,7 +1963,7 @@ function drawSong(mood) {
   let candidates = songs;
   if (mood === "彩蛋") {
     candidates = songs.filter((song) =>
-      song.mood.includes("陪伴") || song.mood.includes("甜一点")
+      song.mood.includes("想被安静陪着") || song.mood.includes("想听甜一点")
     );
   } else if (mood !== "随机") {
     candidates = songs.filter((song) => song.mood.includes(mood));
