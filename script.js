@@ -392,9 +392,9 @@ const resultKicker = $("#resultKicker");
 const songTitle = $("#songTitle");
 const songArtist = $("#songArtist");
 const songMessage = $("#songMessage");
-const detailDiscButton = $("#detailDiscButton");
-const detailDisc = $("#detailDisc");
 const songDetailStatus = $("#songDetailStatus");
+const mainMusicDisc = $("#mainMusicDisc");
+const mainDiscHint = $("#mainDiscHint");
 const record = $("#record");
 const tonearm = $("#tonearm");
 const listenLayer = $("#listenLayer");
@@ -625,7 +625,6 @@ function resetPlaybackUi() {
   updatePlayButtonText(false);
   $("#singPlayButton").textContent = "开始轻唱";
   updateProgressControls();
-  updateDetailDiscState();
   updateFloatingPlayer();
 }
 
@@ -698,14 +697,6 @@ function bindProgressControl(input, currentLabel) {
   input.addEventListener("blur", () => {
     if (isSeekingAudio) seekFromProgress(input);
   });
-}
-
-function updateDetailDiscState() {
-  if (!detailDisc) return;
-  detailDisc.classList.toggle(
-    "is-playing",
-    Boolean(currentSong && !audioPlayer.paused && !audioPlayer.ended)
-  );
 }
 
 function updatePlayButtonText(isPlaying) {
@@ -1292,7 +1283,6 @@ function renderSongDetail(song, source = currentSource) {
   renderTags(resultTags, song.mood);
   resultKicker.textContent = source === "library" ? "歌曲详情" : "今日抽到";
   $("#againButton").hidden = source === "library";
-  updateDetailDiscState();
 }
 
 function setCurrentSong(song, sourceMood = song.mood[0], source = "mood", options = {}) {
@@ -1346,7 +1336,15 @@ async function selectSongDetailAndPlay(song) {
 }
 
 function openLyricPageFromDisc() {
-  if (!currentSong) return;
+  if (!currentSong) {
+    setAudioStatus("先选一首歌吧。");
+    mainDiscHint.textContent = "先选一首歌吧。";
+    window.setTimeout(() => {
+      if (!currentSong) mainDiscHint.textContent = "轻点唱片，看歌词";
+    }, 1800);
+    return;
+  }
+  mainDiscHint.textContent = "轻点唱片，看歌词";
   if (currentPlaybackContext === "sing" || currentMode === "sing") {
     openSingMode({ preserveAccompaniment: true });
   } else {
@@ -1490,7 +1488,6 @@ async function handleAudioEnded() {
   updatePlayButtonText(false);
   $("#singPlayButton").textContent = "开始轻唱";
   updateMediaPlaybackState("none");
-  updateDetailDiscState();
   updateProgressControls({ force: true });
   updateFloatingPlayer();
 
@@ -2658,7 +2655,12 @@ $("#openListenButton").addEventListener("click", async () => {
   }
 });
 $("#openSingButton").addEventListener("click", openSingMode);
-detailDiscButton.addEventListener("click", openLyricPageFromDisc);
+mainMusicDisc.addEventListener("click", openLyricPageFromDisc);
+mainMusicDisc.addEventListener("keydown", (event) => {
+  if (event.key !== "Enter" && event.key !== " ") return;
+  event.preventDefault();
+  openLyricPageFromDisc();
+});
 $("#cardQqButton").addEventListener("click", openQqMusic);
 $("#listenQqButton").addEventListener("click", openQqMusic);
 $("#quietListenBtn").addEventListener("click", togglePlayback);
@@ -2800,7 +2802,6 @@ audioPlayer.addEventListener("pause", () => {
   updatePlayButtonText(false);
   $("#singPlayButton").textContent = "开始轻唱";
   updateMediaPlaybackState("paused");
-  updateDetailDiscState();
   updateFloatingPlayer();
 });
 
@@ -2833,7 +2834,6 @@ audioPlayer.addEventListener("playing", () => {
   updatePlayButtonText(true);
   $("#singPlayButton").textContent = "先停一下";
   updateMediaPlaybackState("playing");
-  updateDetailDiscState();
   updateFloatingPlayer();
   updateAudioDebugPanel();
 });
@@ -2854,7 +2854,6 @@ audioPlayer.addEventListener("error", () => {
   $("#quietListenBtn").textContent = "重新加载音频";
   $("#singPlayButton").textContent = "重新加载音频";
   loadedSongId = null;
-  updateDetailDiscState();
   updateProgressControls({ force: true });
   updateFloatingPlayer();
   updateAudioDebugPanel();

@@ -229,7 +229,17 @@ h1 {
     linear-gradient(135deg, rgba(255,255,255,.45), transparent 38%),
     linear-gradient(145deg, var(--scene-a), var(--scene-b));
   box-shadow: inset 0 0 32px rgba(70,74,76,.08);
-  transition: background .4s ease;
+  cursor: pointer;
+  transition: background .4s ease, transform .2s ease, box-shadow .2s ease;
+}
+
+.record-scene:active {
+  transform: scale(.992);
+}
+
+.record-scene:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent-dark) 55%, transparent);
+  outline-offset: 3px;
 }
 
 .record {
@@ -335,6 +345,16 @@ h1 {
 .paper-slip b {
   color: var(--accent-dark);
   font-size: 12px;
+}
+
+.record-scene-hint {
+  position: absolute;
+  right: 19px;
+  bottom: 3px;
+  z-index: 2;
+  color: color-mix(in srgb, var(--muted) 78%, transparent);
+  font-size: 9px;
+  letter-spacing: .04em;
 }
 
 .mood-panel {
@@ -507,77 +527,6 @@ h1 {
   color: var(--muted);
   font-size: 13px;
   line-height: 1.75;
-}
-
-.music-disc-card {
-  display: flex;
-  align-items: center;
-  width: 100%;
-  margin-top: 16px;
-  padding: 13px 15px;
-  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--line));
-  border-radius: 18px;
-  color: var(--text);
-  background: color-mix(in srgb, var(--note) 78%, transparent);
-  text-align: left;
-  transition: transform .2s ease, background-color .2s ease, box-shadow .2s ease;
-}
-
-.music-disc-card:active {
-  transform: scale(.985);
-}
-
-.detail-disc {
-  position: relative;
-  display: grid;
-  flex: 0 0 76px;
-  width: 76px;
-  height: 76px;
-  place-items: center;
-  border-radius: 50%;
-  background:
-    radial-gradient(circle at center, #d9b979 0 8%, #f2e7c7 9% 16%, #17181b 17% 23%, transparent 24%),
-    repeating-radial-gradient(circle at center, #202126 0 3px, #111216 4px 6px);
-  box-shadow: 0 10px 24px rgba(34,35,40,.2);
-}
-
-.detail-disc::after {
-  position: absolute;
-  inset: 8px;
-  border: 1px solid rgba(255,255,255,.08);
-  border-radius: inherit;
-  content: "";
-}
-
-.detail-disc.is-playing {
-  animation: detail-disc-spin 8s linear infinite;
-}
-
-.detail-disc-label {
-  position: relative;
-  z-index: 1;
-  color: #5f4a2f;
-  font-family: Georgia, serif;
-  font-size: 7px;
-  font-weight: 700;
-  line-height: 1.05;
-  text-align: center;
-}
-
-.music-disc-copy {
-  display: grid;
-  gap: 5px;
-  margin-left: 14px;
-}
-
-.music-disc-copy strong {
-  font-family: "Songti SC", SimSun, serif;
-  font-size: 17px;
-}
-
-.music-disc-copy small {
-  color: var(--muted);
-  font-size: 11px;
 }
 
 .detail-audio-status {
@@ -2173,7 +2122,6 @@ textarea:focus-visible {
 }
 
 @keyframes record-spin { to { transform: rotate(540deg); } }
-@keyframes detail-disc-spin { to { transform: rotate(360deg); } }
 @keyframes wave { to { height: 21px; opacity: .5; } }
 @keyframes view-in { from { opacity: 0; transform: translateY(5px); } }
 @keyframes card-pop { from { opacity: 0; transform: translateY(9px) scale(.98); } }

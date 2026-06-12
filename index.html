@@ -89,10 +89,11 @@
           <span>PLAY SOMETHING NICE</span>
         </div>
 
-        <div class="record-scene" aria-hidden="true">
+        <div class="record-scene" id="mainMusicDisc" role="button" tabindex="0" aria-label="打开当前歌曲歌词">
           <div class="record" id="record"><div class="record-label">MOOD<br>BOX</div></div>
           <div class="tonearm" id="tonearm"></div>
           <div class="paper-slip">今日歌单<br><b>随机掉落</b></div>
+          <span class="record-scene-hint" id="mainDiscHint">轻点唱片，看歌词</span>
         </div>
 
         <div class="mood-panel" id="moodPanel">
@@ -121,16 +122,6 @@
           <h2 id="songTitle">晴天</h2>
           <p class="artist" id="songArtist">周杰伦</p>
           <p class="recommendation" id="songMessage"></p>
-
-          <button class="music-disc-card" id="detailDiscButton" type="button" aria-label="打开当前歌曲歌词">
-            <span class="detail-disc" id="detailDisc" aria-hidden="true">
-              <span class="detail-disc-label">MOOD<br>BOX</span>
-            </span>
-            <span class="music-disc-copy">
-              <strong>音乐盘</strong>
-              <small>点一下音乐盘，看歌词</small>
-            </span>
-          </button>
           <p class="audio-status detail-audio-status" id="songDetailStatus" aria-live="polite"></p>
 
           <div class="mode-buttons">
