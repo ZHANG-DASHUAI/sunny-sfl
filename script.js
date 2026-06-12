@@ -6,7 +6,7 @@ const EMPTY_LYRIC = "歌词还没放进来，但歌可以先听。";
 // 只有对应 MP3 已上传到 R2 后，才把歌曲 id 加入这些集合。
 const VOCAL_REDUCED_AUDIO_IDS = new Set([
   "qing-tian",
-  "ai-ni-mei-cha",
+  "ai-ni-wu-cha",
   "shou-xie-de-cong-qian",
   "ye-qu",
   "fa-ru-xue",
@@ -14,12 +14,13 @@ const VOCAL_REDUCED_AUDIO_IDS = new Set([
   "deng-ni-xia-ke",
   "shuo-hao-bu-ku",
   "da-ben-zhong",
+  "mojito",
   "cai-hong",
   "ting-ma-ma-de-hua"
 ]);
 const INSTRUMENTAL_AUDIO_IDS = new Set([
   "qing-tian",
-  "ai-ni-mei-cha",
+  "ai-ni-wu-cha",
   "shou-xie-de-cong-qian",
   "ye-qu",
   "fa-ru-xue",
@@ -27,6 +28,7 @@ const INSTRUMENTAL_AUDIO_IDS = new Set([
   "deng-ni-xia-ke",
   "shuo-hao-bu-ku",
   "da-ben-zhong",
+  "mojito",
   "cai-hong",
   "ting-ma-ma-de-hua"
 ]);
@@ -126,18 +128,18 @@ const songs = [
     }
   ),
   createSong(
-    "ai-ni-mei-cha",
-    "爱你没差",
+    "ai-ni-wu-cha",
+    "爱你无差",
     ["甜", "陪伴"],
-    AUDIO_NORMAL_BASE_URL + "ai-ni-mei-cha.mp3",
+    AUDIO_NORMAL_BASE_URL + "ai-ni-wu-cha.mp3",
     "适合轻松一点的时候听，像把心情放软一点。",
     {
       lyricsText: [],
       lyricsTimed: [],
-      vocalReducedAudio: AUDIO_VOCAL_LOW_BASE_URL + "ai-ni-mei-cha.mp3",
-      instrumentalAudio: AUDIO_INSTRUMENTAL_BASE_URL + "ai-ni-mei-cha.mp3",
+      vocalReducedAudio: AUDIO_VOCAL_LOW_BASE_URL + "ai-ni-wu-cha.mp3",
+      instrumentalAudio: AUDIO_INSTRUMENTAL_BASE_URL + "ai-ni-wu-cha.mp3",
       qqMusicUrl: "",
-      searchKeyword: "爱你没差 周杰伦"
+      searchKeyword: "爱你无差 周杰伦"
     }
   ),
   createSong(
@@ -358,7 +360,21 @@ const songs = [
   ),
   createSong("shuo-hao-bu-ku", "说好不哭", ["emo"], AUDIO_NORMAL_BASE_URL + "shuo-hao-bu-ku.mp3", "旋律很顺，适合下班路上安安静静地听。"),
   createSong("da-ben-zhong", "大笨钟", ["放空", "甜一点"], AUDIO_NORMAL_BASE_URL + "da-ben-zhong.mp3", "俏皮一点也没关系，普通的一天需要些节奏。"),
-  createSong("mojito", "Mojito", ["放空", "甜一点"], AUDIO_NORMAL_BASE_URL + "mojito.mp3", "节奏轻快，适合给普通的一天换个明亮背景。"),
+  createSong(
+    "mojito",
+    "Mojito",
+    ["甜", "放空"],
+    AUDIO_NORMAL_BASE_URL + "mojito.mp3",
+    "适合轻快一点的心情，像空气里有一点甜。",
+    {
+      lyricsText: [],
+      lyricsTimed: [],
+      vocalReducedAudio: AUDIO_VOCAL_LOW_BASE_URL + "mojito.mp3",
+      instrumentalAudio: AUDIO_INSTRUMENTAL_BASE_URL + "mojito.mp3",
+      qqMusicUrl: "",
+      searchKeyword: "Mojito 周杰伦"
+    }
+  ),
   createSong("cai-hong", "彩虹", ["甜一点", "陪伴", "回忆"], AUDIO_NORMAL_BASE_URL + "cai-hong.mp3", "旋律温柔，适合把今天的步子稍微放慢一点。"),
   createSong("ting-ma-ma-de-hua", "听妈妈的话", ["放空", "陪伴", "回忆"], AUDIO_NORMAL_BASE_URL + "ting-ma-ma-de-hua.mp3", "熟悉又踏实的一首，适合在有点累时听听。")
 ];
