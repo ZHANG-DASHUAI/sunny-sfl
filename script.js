@@ -453,6 +453,7 @@ let activeLyricIndex = -1;
 let lyricLineElements = [];
 let lyricSyncTimer = null;
 let currentMode = null;
+let currentPlaybackContext = "listen";
 let loadedSongId = null;
 let playMode = "sequence";
 let playHistory = [];
@@ -673,12 +674,14 @@ function getSingAudioSrc() {
 
 function getCurrentAudioSrc() {
   if (!currentSong) return "";
-  return currentMode === "sing" ? getSingAudioSrc() : (currentSong.audio || "");
+  return currentPlaybackContext === "sing"
+    ? getSingAudioSrc()
+    : (currentSong.audio || "");
 }
 
 function getCurrentAudioField() {
   if (!currentSong) return "";
-  if (currentMode !== "sing") return "audio";
+  if (currentPlaybackContext !== "sing") return "audio";
   if (singAccompanyMode === "instrumental") return "instrumentalAudio";
   return currentSong.vocalReducedAudio ? "vocalReducedAudio" : "audio";
 }
@@ -693,7 +696,7 @@ function getSingPlaybackVolume() {
 
 function applyPlaybackVolume() {
   audioPlayer.muted = false;
-  audioPlayer.volume = currentMode === "sing" ? getSingPlaybackVolume() : 1;
+  audioPlayer.volume = currentPlaybackContext === "sing" ? getSingPlaybackVolume() : 1;
 }
 
 function resolveAudioUrl(src) {
@@ -753,7 +756,8 @@ function releaseAudioTrack() {
 function showAudioDiagnostics(song, targetSrc) {
   console.log("当前歌曲：", song.title);
   console.log("当前模式：", currentMode || "normal");
-  console.log("陪唱模式：", currentMode === "sing" ? singAccompanyMode : "not active");
+  console.log("播放上下文：", currentPlaybackContext);
+  console.log("陪唱模式：", currentPlaybackContext === "sing" ? singAccompanyMode : "not active");
   console.log("实际播放字段：", getCurrentAudioField());
   console.log("音频路径：", getCurrentAudioSrc());
   console.log("实际请求地址：", targetSrc);
@@ -766,7 +770,8 @@ function updateAudioDebugPanel() {
     `song: ${currentSong?.title || "(none)"}`,
     `song id: ${currentSong?.id || "(none)"}`,
     `mode: ${currentMode || "normal"}`,
-    `sing mode: ${currentMode === "sing" ? singAccompanyMode : "not active"}`,
+    `playback context: ${currentPlaybackContext}`,
+    `sing mode: ${currentPlaybackContext === "sing" ? singAccompanyMode : "not active"}`,
     `currentSong.audio: ${currentSong?.audio || "(empty)"}`,
     `currentSong.vocalReducedAudio: ${currentSong?.vocalReducedAudio || "(empty)"}`,
     `currentSong.instrumentalAudio: ${currentSong?.instrumentalAudio || "(empty)"}`,
@@ -1044,10 +1049,12 @@ async function playCurrentSong() {
   try {
     setAudioStatus("音频加载中……");
     await audioPlayer.play();
+    return true;
   } catch (error) {
     console.error("播放失败：", error);
     setAudioStatus("播放被拦截了，再轻点一下试试。");
     updatePlayButtonText(false);
+    return false;
   }
 }
 
@@ -1143,6 +1150,7 @@ async function startSingPlayback() {
   }
 
   currentMode = "sing";
+  currentPlaybackContext = "sing";
   const src = getSingAudioSrc();
   if (!src) {
     setAudioStatus("这首歌还没有可用的轻唱音频。");
@@ -1220,6 +1228,7 @@ function setCurrentSong(song, sourceMood = song.mood[0], source = "mood", option
 
 // 用户从心情盒子或音乐盒选歌时，共用这一条“选歌并静听”路径。
 async function selectSongAndPlay(song, source, sourceMood = song.mood[0]) {
+  currentPlaybackContext = "listen";
   setCurrentSong(song, sourceMood, source);
   openListenMode();
 
@@ -1244,8 +1253,14 @@ function renderCurrentSongWithoutClosingMode(song, options = {}) {
   songMessage.textContent = song.message;
   renderTags(resultTags, song.mood);
 
-  if (listenWasOpen) openListenMode();
-  if (singWasOpen) openSingMode();
+  activeLyricIndex = -1;
+  if (listenWasOpen) openListenMode({ updatePlaybackContext: false });
+  if (singWasOpen) {
+    openSingMode({
+      preserveAccompaniment: true,
+      updatePlaybackContext: false
+    });
+  }
   updateFloatingPlayer();
 }
 
@@ -1258,12 +1273,12 @@ async function playSongByIndex(index, options = {}) {
   const normalizedIndex = ((index % songs.length) + songs.length) % songs.length;
   const song = songs[normalizedIndex];
   renderCurrentSongWithoutClosingMode(song, options);
-  try {
-    await playCurrentSong();
-  } catch (error) {
-    // 微信若阻止连续播放，统一播放函数会显示再次点击提示。
+  const played = await playCurrentSong();
+  if (!played && options.autoAdvance) {
+    setAudioStatus("下一首准备好了，轻点继续播放。");
   }
   updateFloatingPlayer();
+  return played;
 }
 
 async function playRandomSong(options = {}) {
@@ -1276,22 +1291,98 @@ async function playRandomSong(options = {}) {
   await playSongByIndex(index, options);
 }
 
-async function playNextSong() {
+function getSequentialSongIndex(direction = 1, requireInstrumental = false) {
+  if (!songs.length) return -1;
+  const currentIndex = Math.max(0, getCurrentSongIndex());
+  for (let offset = 1; offset <= songs.length; offset += 1) {
+    const index = (currentIndex + direction * offset + songs.length) % songs.length;
+    if (!requireInstrumental || hasInstrumental(songs[index])) return index;
+  }
+  return -1;
+}
+
+function getRandomSongIndex(requireInstrumental = false) {
+  const candidates = songs.filter((song) =>
+    (!requireInstrumental || hasInstrumental(song)) &&
+    (!currentSong || songs.length === 1 || song.id !== currentSong.id)
+  );
+  if (!candidates.length) return -1;
+  const song = chooseRandom(candidates);
+  return songs.findIndex((item) => item.id === song.id);
+}
+
+function getNextSongIndexForCurrentMode(direction = 1) {
+  const requireInstrumental =
+    currentPlaybackContext === "sing" && singAccompanyMode === "instrumental";
+  if (playMode === "random") return getRandomSongIndex(requireInstrumental);
+  return getSequentialSongIndex(direction, requireInstrumental);
+}
+
+function fallbackFromUnavailableInstrumental() {
+  singAccompanyMode = "vocal";
+  setAudioStatus("后面的歌还没有伴奏版，先切回原声陪唱。");
+  if (!singLayer.hidden) updateSingSourceUi();
+}
+
+async function replayCurrentSongInCurrentMode() {
+  if (!currentSong) return;
+  if (
+    currentPlaybackContext === "sing" &&
+    singAccompanyMode === "instrumental" &&
+    !hasInstrumental(currentSong)
+  ) {
+    fallbackFromUnavailableInstrumental();
+  }
+  audioPlayer.currentTime = 0;
+  const played = await playCurrentSong();
+  if (!played) setAudioStatus("下一首准备好了，轻点继续播放。");
+}
+
+async function playNextSongInCurrentMode(direction = 1, options = {}) {
   if (!songs.length) return;
   if (!currentSong) {
-    await playSongByIndex(0);
+    await playSongByIndex(0, options);
     return;
   }
 
   if (playMode === "repeat-one") {
-    audioPlayer.currentTime = 0;
-    await playCurrentSong();
-  } else if (playMode === "random") {
-    await playRandomSong();
-  } else {
-    await playSongByIndex(getCurrentSongIndex() + 1);
+    await replayCurrentSongInCurrentMode();
+    return;
   }
+
+  let nextIndex = getNextSongIndexForCurrentMode(direction);
+  if (nextIndex < 0 && currentPlaybackContext === "sing" && singAccompanyMode === "instrumental") {
+    fallbackFromUnavailableInstrumental();
+    nextIndex = playMode === "random"
+      ? getRandomSongIndex(false)
+      : getSequentialSongIndex(direction, false);
+  }
+  if (nextIndex < 0) return;
+
+  await playSongByIndex(nextIndex, {
+    ...options,
+    autoAdvance: options.autoAdvance === true
+  });
+}
+
+async function playNextSong() {
+  await playNextSongInCurrentMode(1);
   updateFloatingPlayer();
+}
+
+async function handleAudioEnded() {
+  if (!currentSong) return;
+  setAudioStatus("这首听完啦");
+  updatePlayButtonText(false);
+  $("#singPlayButton").textContent = "开始轻唱";
+  updateMediaPlaybackState("none");
+  updateFloatingPlayer();
+
+  if (playMode === "repeat-one") {
+    await replayCurrentSongInCurrentMode();
+    return;
+  }
+  await playNextSongInCurrentMode(1, { autoAdvance: true });
 }
 
 async function playPreviousSong() {
@@ -1302,18 +1393,30 @@ async function playPreviousSong() {
   }
 
   if (playMode === "repeat-one") {
-    audioPlayer.currentTime = 0;
-    await playCurrentSong();
+    await replayCurrentSongInCurrentMode();
   } else if (playMode === "random") {
-    const previousId = playHistory.pop();
-    const previousIndex = songs.findIndex((song) => song.id === previousId);
+    let previousIndex = -1;
+    while (playHistory.length && previousIndex < 0) {
+      const previousId = playHistory.pop();
+      const candidateIndex = songs.findIndex((song) => song.id === previousId);
+      if (
+        candidateIndex >= 0 &&
+        (
+          currentPlaybackContext !== "sing" ||
+          singAccompanyMode !== "instrumental" ||
+          hasInstrumental(songs[candidateIndex])
+        )
+      ) {
+        previousIndex = candidateIndex;
+      }
+    }
     if (previousIndex >= 0) {
       await playSongByIndex(previousIndex, { recordHistory: false });
     } else {
-      await playRandomSong({ recordHistory: false });
+      await playNextSongInCurrentMode(-1, { recordHistory: false });
     }
   } else {
-    await playSongByIndex(getCurrentSongIndex() - 1);
+    await playNextSongInCurrentMode(-1);
   }
   updateFloatingPlayer();
 }
@@ -1427,10 +1530,13 @@ function updateActiveLyric(container, options = {}) {
   }
 }
 
-function openListenMode() {
+function openListenMode(options = {}) {
   if (!currentSong) return;
   singLayer.hidden = true;
   currentMode = "listen";
+  if (options.updatePlaybackContext !== false) {
+    currentPlaybackContext = "listen";
+  }
   applyPlaybackVolume();
   $("#listenTitle").textContent = currentSong.title;
   $("#listenArtist").textContent = currentSong.artist;
@@ -1450,16 +1556,25 @@ function openCurrentSongListenView() {
   }
 
   currentSource = "floating";
-  currentMode = "listen";
-  openListenMode();
+  if (currentPlaybackContext === "sing") {
+    openSingMode({ preserveAccompaniment: true });
+  } else {
+    openListenMode();
+  }
   updatePlayButtonText(!audioPlayer.paused);
 }
 
-function openSingMode() {
+function openSingMode(options = {}) {
   if (!currentSong) return;
+  const wasSingPlaybackContext = currentPlaybackContext === "sing";
   listenLayer.hidden = true;
   currentMode = "sing";
-  singAccompanyMode = "vocal";
+  if (options.updatePlaybackContext !== false) {
+    currentPlaybackContext = "sing";
+  }
+  if (!options.preserveAccompaniment && !wasSingPlaybackContext) {
+    singAccompanyMode = "vocal";
+  }
   applyPlaybackVolume();
   $("#singTitle").textContent = currentSong.title;
   const tips = currentSong.singTips.length ? currentSong.singTips : [
@@ -1484,13 +1599,11 @@ function openSingMode() {
 function closeModes() {
   const wasSinging = !singLayer.hidden;
   if (wasSinging) {
-    audioPlayer.pause();
     if (mediaRecorder?.state === "recording") stopRecording();
     else stopRecordingTracks();
   }
   listenLayer.hidden = true;
   singLayer.hidden = true;
-  currentMode = null;
   document.body.style.overflow = "";
   updateBottomNavVisibility();
 }
@@ -1539,6 +1652,7 @@ async function selectSingSource(mode, force = false) {
 
   const wasPlaying = !audioPlayer.paused;
   currentMode = "sing";
+  currentPlaybackContext = "sing";
   singAccompanyMode = mode;
   updateSingSourceUi();
 
@@ -1666,11 +1780,9 @@ function stopRecording() {
 }
 
 function exitSingMode() {
-  audioPlayer.pause();
   if (mediaRecorder?.state === "recording") stopRecording();
   else stopRecordingTracks();
   singLayer.hidden = true;
-  currentMode = null;
   document.body.style.overflow = "";
   updateBottomNavVisibility();
 }
@@ -2567,14 +2679,7 @@ audioPlayer.addEventListener("pause", () => {
   updateFloatingPlayer();
 });
 
-audioPlayer.addEventListener("ended", async () => {
-  setAudioStatus("这首听完啦");
-  updatePlayButtonText(false);
-  $("#singPlayButton").textContent = "开始轻唱";
-  updateMediaPlaybackState("none");
-  updateFloatingPlayer();
-  await playNextSong();
-});
+audioPlayer.addEventListener("ended", handleAudioEnded);
 
 audioPlayer.addEventListener("waiting", () => {
   setAudioStatus("音频加载中……");
@@ -2607,7 +2712,7 @@ audioPlayer.addEventListener("error", () => {
   console.error("当前歌曲：", currentSong?.title || "(none)");
   console.error("audio URL:", resolveAudioUrl(getCurrentAudioSrc()));
   console.error("audio error:", audioPlayer.error);
-  if (currentMode === "sing" && singAccompanyMode === "instrumental") {
+  if (currentPlaybackContext === "sing" && singAccompanyMode === "instrumental") {
     console.error("轻伴唱失败歌曲：", currentSong?.title || "(none)");
     console.error("伴奏 URL：", currentSong?.instrumentalAudio || "");
     console.error("audio error：", audioPlayer.error);
