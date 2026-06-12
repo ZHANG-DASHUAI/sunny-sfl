@@ -17,12 +17,16 @@ const VOCAL_REDUCED_AUDIO_IDS = new Set([
   "ting-ma-ma-de-hua"
 ]);
 const INSTRUMENTAL_AUDIO_IDS = new Set([
+  "qing-tian",
   "shou-xie-de-cong-qian",
+  "ye-qu",
   "fa-ru-xue",
   "ban-dao-tie-he",
   "deng-ni-xia-ke",
+  "shuo-hao-bu-ku",
   "da-ben-zhong",
-  "cai-hong"
+  "cai-hong",
+  "ting-ma-ma-de-hua"
 ]);
 
 // 新增歌曲时优先使用这个工厂函数，最终得到的数据字段会保持一致。
@@ -680,9 +684,19 @@ function togglePlayMode() {
   setPlayMode(modes[nextIndex]);
 }
 
+function hasInstrumental(song) {
+  return Boolean(
+    song &&
+    typeof song.instrumentalAudio === "string" &&
+    song.instrumentalAudio.trim()
+  );
+}
+
 function getSingAudioSrc() {
   if (!currentSong) return "";
-  if (singAccompanyMode === "instrumental") return currentSong.instrumentalAudio || "";
+  if (singAccompanyMode === "instrumental") {
+    return hasInstrumental(currentSong) ? currentSong.instrumentalAudio.trim() : "";
+  }
   if (singAccompanyMode === "vocal") {
     return currentSong.vocalReducedAudio || currentSong.audio || "";
   }
@@ -702,10 +716,10 @@ function getCurrentAudioField() {
 }
 
 function getSingPlaybackVolume() {
+  if (singAccompanyMode === "instrumental") return 0.8;
   if (hasSavedSingVolume && Number.isFinite(singVolume) && singVolume > 0) {
     return singVolume;
   }
-  if (singAccompanyMode === "instrumental") return 0.8;
   return currentSong?.vocalReducedAudio ? 0.75 : 0.18;
 }
 
@@ -782,6 +796,7 @@ function updateAudioDebugPanel() {
   const audioError = audioPlayer.error;
   audioDebugContent.textContent = [
     `song: ${currentSong?.title || "(none)"}`,
+    `song id: ${currentSong?.id || "(none)"}`,
     `mode: ${currentMode || "normal"}`,
     `sing mode: ${currentMode === "sing" ? singAccompanyMode : "not active"}`,
     `currentSong.audio: ${currentSong?.audio || "(empty)"}`,
@@ -1137,7 +1152,16 @@ async function switchAudioSourceAndPlay(src) {
     return true;
   } catch (error) {
     console.error("轻唱播放被拦截或失败：", error);
-    setAudioStatus("这首歌准备好了，再轻点一下就能听。");
+    if (singAccompanyMode === "instrumental") {
+      console.error("轻伴唱失败歌曲：", currentSong?.title || "(none)");
+      console.error("伴奏 URL：", currentSong?.instrumentalAudio || "");
+      console.error("audio error：", audioPlayer.error);
+      setAudioStatus(error?.name === "NotAllowedError"
+        ? "这首歌准备好了，再轻点一下就能听。"
+        : "伴奏音频加载失败，请检查这首歌的 instrumentalAudio。");
+    } else {
+      setAudioStatus("这首歌准备好了，再轻点一下就能听。");
+    }
     $("#singPlayButton").textContent = "开始轻唱";
     updateAudioDebugPanel();
     return false;
@@ -1506,7 +1530,7 @@ function closeModes() {
 function updateSingSourceUi() {
   $$(".sing-source-button").forEach((button) => {
     const isUnavailableInstrumental =
-      button.dataset.singSource === "instrumental" && !currentSong?.instrumentalAudio;
+      button.dataset.singSource === "instrumental" && !hasInstrumental(currentSong);
     button.classList.toggle("is-unavailable", isUnavailableInstrumental);
     button.setAttribute("aria-disabled", String(isUnavailableInstrumental));
     button.textContent = isUnavailableInstrumental ? "轻伴唱（暂无）" :
@@ -1533,8 +1557,15 @@ function updateSingSourceUi() {
 
 async function selectSingSource(mode, force = false) {
   if (!currentSong || (!force && mode === singAccompanyMode)) return;
-  if (mode === "instrumental" && !currentSong.instrumentalAudio) {
-    singSourceStatus.textContent = "这首还没有伴奏版，先用原声陪唱轻轻跟一下。";
+  if (mode === "instrumental") {
+    console.log("点击轻伴唱");
+    console.log("当前歌曲：", currentSong?.title);
+    console.log("instrumentalAudio：", currentSong?.instrumentalAudio);
+    console.log("实际 URL：", resolveAudioUrl(currentSong?.instrumentalAudio || ""));
+  }
+  if (mode === "instrumental" && !hasInstrumental(currentSong)) {
+    singSourceStatus.textContent = "这首还没有伴奏版。";
+    setAudioStatus("这首还没有伴奏版。");
     return;
   }
 
@@ -1560,7 +1591,14 @@ async function selectSingSource(mode, force = false) {
     }
   } catch (error) {
     console.error("切换陪唱音源失败：", error);
-    setAudioStatus("这首歌准备好了，再轻点一下就能听。");
+    if (mode === "instrumental") {
+      console.error("轻伴唱失败歌曲：", currentSong.title);
+      console.error("伴奏 URL：", currentSong.instrumentalAudio);
+      console.error("audio error：", audioPlayer.error);
+      setAudioStatus("伴奏音频加载失败，请检查这首歌的 instrumentalAudio。");
+    } else {
+      setAudioStatus("这首歌准备好了，再轻点一下就能听。");
+    }
     updatePlayButtonText(false);
     $("#singPlayButton").textContent = "开始轻唱";
   }
@@ -2602,7 +2640,10 @@ audioPlayer.addEventListener("error", () => {
   console.error("audio URL:", resolveAudioUrl(getCurrentAudioSrc()));
   console.error("audio error:", audioPlayer.error);
   if (currentMode === "sing" && singAccompanyMode === "instrumental") {
-    setAudioStatus("伴奏音频加载失败，请检查 R2 instrumental 文件夹和文件名。");
+    console.error("轻伴唱失败歌曲：", currentSong?.title || "(none)");
+    console.error("伴奏 URL：", currentSong?.instrumentalAudio || "");
+    console.error("audio error：", audioPlayer.error);
+    setAudioStatus("伴奏音频加载失败，请检查这首歌的 instrumentalAudio。");
   } else {
     setAudioStatus("音频加载失败，请检查 R2 文件路径、公开权限或 CORS 设置。");
   }
