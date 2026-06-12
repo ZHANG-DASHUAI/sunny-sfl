@@ -1394,7 +1394,43 @@ const songs = [
       ]
     }
   ),
-  createSong("pu-gong-ying-de-yue-ding", "蒲公英的约定", ["想回到从前", "想被安静陪着"], AUDIO_NORMAL_BASE_URL + "pu-gong-ying-de-yue-ding.mp3", "适合想起从前的时候，像蒲公英轻轻散开。"),
+  createSong(
+    "pu-gong-ying-de-yue-ding",
+    "蒲公英的约定",
+    ["想回到从前", "想被安静陪着"],
+    AUDIO_NORMAL_BASE_URL + "pu-gong-ying-de-yue-ding.mp3",
+    "适合想起从前的时候，像蒲公英轻轻散开。",
+    {
+      lyricsTimed: [
+        { time: 0, text: "蒲公英的约定 - 周杰伦 (Jay Chou)" },
+        { time: 29, text: "小学篱笆旁的蒲公英" },
+        { time: 35, text: "是记忆里有味道的风景" },
+        { time: 43, text: "午睡操场传来蝉的声音" },
+        { time: 50, text: "多少年后也还是很好听" },
+        { time: 57, text: "将愿望折纸飞机寄成信" },
+        { time: 64, text: "因为我们等不到那流星" },
+        { time: 71, text: "认真投决定命运的硬币" },
+        { time: 78, text: "却不知道到底能去哪里" },
+        { time: 85, text: "一起长大的约定" },
+        { time: 90, text: "那样清晰 打过勾的我相信" },
+        { time: 99, text: "说好要一起旅行" },
+        { time: 104, text: "是你如今 唯一坚持的任性" },
+        { time: 142, text: "在走廊上罚站打手心" },
+        { time: 148, text: "我们却注意窗边的蜻蜓" },
+        { time: 156, text: "我去到哪里你都跟很紧" },
+        { time: 163, text: "很多的梦在等待着进行" },
+        { time: 170, text: "一起长大的约定" },
+        { time: 175, text: "那样清晰 打过勾的我相信" },
+        { time: 184, text: "说好要一起旅行" },
+        { time: 189, text: "是你如今 唯一坚持的任性" },
+        { time: 198, text: "一起长大的约定" },
+        { time: 203, text: "那样真心" },
+        { time: 206, text: "与你聊不完的曾经" },
+        { time: 212, text: "而我已经分不清" },
+        { time: 217, text: "你是友情还是错过的爱情" }
+      ]
+    }
+  ),
   createSong("qi-li-xiang", "七里香", ["想听甜一点", "想放空一下", "想回到从前"], AUDIO_NORMAL_BASE_URL + "qi-li-xiang.mp3", "适合清新的心情，像风里有一点夏天的味道。"),
   createSong(
     "qing-hua-ci",
