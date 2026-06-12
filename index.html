@@ -382,9 +382,49 @@
   </aside>
 
   <aside class="audio-debug-panel" id="audioDebugPanel" hidden aria-live="polite">
-    <strong>Audio Debug</strong>
+    <div class="audio-debug-heading">
+      <strong>Audio Debug</strong>
+      <button id="audioHealthCheckButton" type="button">音频自检</button>
+    </div>
     <pre id="audioDebugContent"></pre>
   </aside>
+
+  <section class="audio-health-layer" id="audioHealthLayer" hidden aria-label="音频自检">
+    <div class="audio-health-card">
+      <div class="audio-health-heading">
+        <div>
+          <p class="mode-kicker">R2 AUDIO CHECK</p>
+          <h2>音频自检</h2>
+          <p>逐首检查 normal、vocal-low 和 instrumental 的实际地址。</p>
+        </div>
+        <button class="close-icon" id="closeAudioHealthButton" type="button" aria-label="关闭音频自检">×</button>
+      </div>
+      <div class="audio-health-actions">
+        <button class="primary-button" id="runAudioHealthCheckButton" type="button">开始检查</button>
+        <span id="audioHealthStatus" aria-live="polite">还没有开始检查。</span>
+      </div>
+      <div class="audio-health-table-wrap">
+        <table class="audio-health-table">
+          <thead>
+            <tr>
+              <th>歌名</th>
+              <th>ID</th>
+              <th>normal</th>
+              <th>vocal-low</th>
+              <th>instrumental</th>
+              <th>normal URL</th>
+              <th>vocal-low URL</th>
+              <th>instrumental URL</th>
+            </tr>
+          </thead>
+          <tbody id="audioHealthResults"></tbody>
+        </table>
+      </div>
+      <p class="audio-health-note">
+        ⚠️ 未填写表示歌曲数据中没有配置；❌ 缺失表示已填写，但 R2 文件不存在、文件名不一致或跨域检查失败。
+      </p>
+    </div>
+  </section>
 
   <footer id="bottomNav" class="bottom-nav">不用急着回答什么，今天就先听一首歌吧。</footer>
   <!-- 全项目唯一的播放器。静听和轻唱共用，不随面板重建。 -->

@@ -457,6 +457,12 @@ const saveRecordingButton = $("#saveRecordingButton");
 const bottomNav = $("#bottomNav");
 const audioDebugPanel = $("#audioDebugPanel");
 const audioDebugContent = $("#audioDebugContent");
+const audioHealthLayer = $("#audioHealthLayer");
+const audioHealthResults = $("#audioHealthResults");
+const audioHealthStatus = $("#audioHealthStatus");
+const audioHealthCheckButton = $("#audioHealthCheckButton");
+const runAudioHealthCheckButton = $("#runAudioHealthCheckButton");
+const closeAudioHealthButton = $("#closeAudioHealthButton");
 const lyricsHelperLayer = $("#lyricsHelperLayer");
 const lyricsSongSelect = $("#lyricsSongSelect");
 const lyricsInput = $("#lyricsInput");
@@ -489,6 +495,7 @@ let recordingChunks = [];
 let recordingBlob = null;
 let recordingUrl = "";
 let audioDebugTimer = null;
+let audioHealthCheckRunning = false;
 let helperLyricsText = [];
 let helperTimedLyrics = [];
 let helperActiveIndex = -1;
@@ -798,9 +805,222 @@ function updateAudioDebugPanel() {
 function initializeAudioDebugPanel() {
   const enabled = new URLSearchParams(window.location.search).get("debug") === "1";
   audioDebugPanel.hidden = !enabled;
+  audioHealthCheckButton.hidden = !enabled;
   if (!enabled) return;
   updateAudioDebugPanel();
   audioDebugTimer = window.setInterval(updateAudioDebugPanel, 500);
+}
+
+function createAudioHealthUrl(url) {
+  if (!url) return document.createTextNode("—");
+  const link = document.createElement("a");
+  link.className = "audio-health-url";
+  link.href = url;
+  link.target = "_blank";
+  link.rel = "noopener noreferrer";
+  link.textContent = url;
+  link.title = "在新标签页打开音频地址";
+  return link;
+}
+
+function createAudioHealthStatusCell(initialText = "等待检查") {
+  const cell = document.createElement("td");
+  cell.className = "audio-health-status is-checking";
+  cell.textContent = initialText;
+  return cell;
+}
+
+function renderAudioHealthRows() {
+  audioHealthResults.replaceChildren();
+  songs.forEach((song) => {
+    const row = document.createElement("tr");
+    row.dataset.songId = song.id;
+
+    const titleCell = document.createElement("td");
+    titleCell.textContent = song.title;
+    const idCell = document.createElement("td");
+    idCell.textContent = song.id;
+
+    row.append(
+      titleCell,
+      idCell,
+      createAudioHealthStatusCell(),
+      createAudioHealthStatusCell(),
+      createAudioHealthStatusCell()
+    );
+
+    ["audio", "vocalReducedAudio", "instrumentalAudio"].forEach((field) => {
+      const urlCell = document.createElement("td");
+      urlCell.append(createAudioHealthUrl(song[field]));
+      row.append(urlCell);
+    });
+    audioHealthResults.append(row);
+  });
+}
+
+async function fetchAudioHealthResponse(url, method) {
+  const options = {
+    method,
+    mode: "cors",
+    cache: "no-store"
+  };
+  if (method === "GET") {
+    options.headers = { Range: "bytes=0-0" };
+  }
+
+  const response = await fetch(url, options);
+  if (method === "GET" && response.body) {
+    response.body.cancel().catch(() => {});
+  }
+  return response;
+}
+
+function probeAudioMetadata(url) {
+  return new Promise((resolve) => {
+    const probe = new Audio();
+    let settled = false;
+    const timeoutId = window.setTimeout(() => finish(false, "媒体元数据读取超时"), 10000);
+
+    const cleanup = () => {
+      window.clearTimeout(timeoutId);
+      probe.removeEventListener("loadedmetadata", handleLoaded);
+      probe.removeEventListener("error", handleError);
+      probe.removeAttribute("src");
+      probe.load();
+    };
+    const finish = (ok, detail) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      resolve({ ok, detail });
+    };
+    const handleLoaded = () => finish(true, "媒体元数据探测成功");
+    const handleError = () => {
+      const code = probe.error?.code;
+      finish(false, code ? `媒体探测错误 ${code}` : "媒体探测失败");
+    };
+
+    probe.preload = "metadata";
+    probe.addEventListener("loadedmetadata", handleLoaded, { once: true });
+    probe.addEventListener("error", handleError, { once: true });
+    probe.src = url;
+    probe.load();
+  });
+}
+
+async function checkAudioUrl(url) {
+  if (!url) {
+    return { state: "empty", label: "⚠️ 未填写", detail: "" };
+  }
+
+  let headDetail = "";
+  try {
+    const headResponse = await fetchAudioHealthResponse(url, "HEAD");
+    if (headResponse.ok) {
+      return { state: "ok", label: `✅ 可用 (${headResponse.status})`, detail: "" };
+    }
+    headDetail = `HEAD ${headResponse.status}`;
+  } catch (error) {
+    headDetail = `HEAD ${error?.message || "请求失败"}`;
+  }
+
+  try {
+    const getResponse = await fetchAudioHealthResponse(url, "GET");
+    if (getResponse.ok) {
+      return { state: "ok", label: `✅ 可用 (${getResponse.status})`, detail: "GET Range 兜底成功" };
+    }
+    return {
+      state: "missing",
+      label: `❌ 缺失 (${getResponse.status})`,
+      detail: `${headDetail}; GET ${getResponse.status}`
+    };
+  } catch (error) {
+    const mediaProbe = await probeAudioMetadata(url);
+    if (mediaProbe.ok) {
+      return {
+        state: "ok",
+        label: "✅ 可用（媒体探测）",
+        detail: `${headDetail}; GET 受跨域限制; ${mediaProbe.detail}`
+      };
+    }
+    return {
+      state: "missing",
+      label: "❌ 缺失",
+      detail: `${headDetail}; GET ${error?.message || "请求失败"}; ${mediaProbe.detail}`
+    };
+  }
+}
+
+function updateAudioHealthCell(songId, fieldIndex, result) {
+  const row = Array.from(audioHealthResults.rows)
+    .find((item) => item.dataset.songId === songId);
+  const cell = row?.children[fieldIndex + 2];
+  if (!cell) return;
+  cell.className = `audio-health-status is-${result.state}`;
+  cell.textContent = result.label;
+  if (result.detail) cell.title = result.detail;
+  if (fieldIndex === 2 && result.state === "missing") {
+    cell.title = "伴奏路径填写了，但 R2 文件不存在、文件名不一致或跨域检查失败。";
+  }
+}
+
+async function checkSongAudio(song) {
+  const fields = ["audio", "vocalReducedAudio", "instrumentalAudio"];
+  return Promise.all(fields.map(async (field, index) => {
+    const result = await checkAudioUrl(song[field]);
+    updateAudioHealthCell(song.id, index, result);
+    return result;
+  }));
+}
+
+async function runAudioHealthCheck() {
+  if (audioHealthCheckRunning) return;
+  audioHealthCheckRunning = true;
+  runAudioHealthCheckButton.disabled = true;
+  runAudioHealthCheckButton.textContent = "正在检查……";
+  renderAudioHealthRows();
+
+  let nextIndex = 0;
+  let completed = 0;
+  const allResults = [];
+  audioHealthStatus.textContent = `正在检查 0 / ${songs.length} 首……`;
+
+  async function worker() {
+    while (nextIndex < songs.length) {
+      const songIndex = nextIndex;
+      nextIndex += 1;
+      allResults[songIndex] = await checkSongAudio(songs[songIndex]);
+      completed += 1;
+      audioHealthStatus.textContent = `正在检查 ${completed} / ${songs.length} 首……`;
+    }
+  }
+
+  try {
+    await Promise.all(Array.from({ length: Math.min(3, songs.length) }, () => worker()));
+    const flatResults = allResults.flat();
+    const okCount = flatResults.filter((item) => item.state === "ok").length;
+    const missingCount = flatResults.filter((item) => item.state === "missing").length;
+    const emptyCount = flatResults.filter((item) => item.state === "empty").length;
+    audioHealthStatus.textContent =
+      `检查完成：✅ ${okCount} 个可用，❌ ${missingCount} 个缺失，⚠️ ${emptyCount} 个未填写。`;
+  } finally {
+    audioHealthCheckRunning = false;
+    runAudioHealthCheckButton.disabled = false;
+    runAudioHealthCheckButton.textContent = "重新检查";
+  }
+}
+
+function openAudioHealthCheck() {
+  renderAudioHealthRows();
+  audioHealthLayer.hidden = false;
+  document.body.style.overflow = "hidden";
+}
+
+function closeAudioHealthCheck() {
+  audioHealthLayer.hidden = true;
+  const hasOpenLayer = !listenLayer.hidden || !singLayer.hidden ||
+    !messageLayer.hidden || !lyricsHelperLayer.hidden;
+  document.body.style.overflow = hasOpenLayer ? "hidden" : "";
 }
 
 // 静听和轻唱共用这一个播放函数及全局 audioPlayer。
@@ -2381,7 +2601,11 @@ audioPlayer.addEventListener("error", () => {
   console.error("当前歌曲：", currentSong?.title || "(none)");
   console.error("audio URL:", resolveAudioUrl(getCurrentAudioSrc()));
   console.error("audio error:", audioPlayer.error);
-  setAudioStatus("音频加载失败，请检查 R2 文件路径、公开权限或 CORS 设置。");
+  if (currentMode === "sing" && singAccompanyMode === "instrumental") {
+    setAudioStatus("伴奏音频加载失败，请检查 R2 instrumental 文件夹和文件名。");
+  } else {
+    setAudioStatus("音频加载失败，请检查 R2 文件路径、公开权限或 CORS 设置。");
+  }
   $("#quietListenBtn").textContent = "重新加载音频";
   $("#singPlayButton").textContent = "重新加载音频";
   loadedSongId = null;
@@ -2509,6 +2733,13 @@ $("#closeMessageButton").addEventListener("click", closeMessageBox);
 $("#closeMessageIcon").addEventListener("click", closeMessageBox);
 messageLayer.addEventListener("click", (event) => {
   if (event.target === messageLayer) closeMessageBox();
+});
+
+audioHealthCheckButton.addEventListener("click", openAudioHealthCheck);
+runAudioHealthCheckButton.addEventListener("click", runAudioHealthCheck);
+closeAudioHealthButton.addEventListener("click", closeAudioHealthCheck);
+audioHealthLayer.addEventListener("click", (event) => {
+  if (event.target === audioHealthLayer) closeAudioHealthCheck();
 });
 
 function setMediaSessionHandlers() {

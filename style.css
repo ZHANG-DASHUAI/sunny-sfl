@@ -1668,15 +1668,33 @@ h1 {
   background: rgba(39,48,54,.9);
   box-shadow: 0 12px 36px rgba(30,35,38,.24);
   font-size: 10px;
-  pointer-events: none;
+  pointer-events: auto;
+}
+
+.audio-debug-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 5px;
 }
 
 .audio-debug-panel strong {
   display: block;
-  margin-bottom: 5px;
   color: #d9ecf8;
   font-family: Georgia, serif;
   letter-spacing: .08em;
+}
+
+.audio-debug-panel button {
+  min-height: 30px;
+  padding: 5px 12px;
+  border: 1px solid rgba(217,236,248,.42);
+  border-radius: 999px;
+  color: #f7fbff;
+  background: rgba(255,255,255,.1);
+  font: inherit;
+  cursor: pointer;
 }
 
 .audio-debug-panel pre {
@@ -1684,6 +1702,133 @@ h1 {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   font: 10px/1.55 Consolas, monospace;
+}
+
+.audio-health-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 110;
+  padding: max(14px, env(safe-area-inset-top)) 12px max(14px, env(safe-area-inset-bottom));
+  overflow: auto;
+  background: rgba(37,43,47,.42);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.audio-health-card {
+  width: min(1120px, 100%);
+  min-height: calc(100vh - 28px);
+  margin: 0 auto;
+  padding: 18px;
+  border: 1px solid rgba(255,255,255,.78);
+  border-radius: 24px;
+  color: var(--ink);
+  background: color-mix(in srgb, var(--panel) 94%, white);
+  box-shadow: 0 18px 48px rgba(39,48,54,.2);
+}
+
+.audio-health-heading,
+.audio-health-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.audio-health-heading h2 {
+  margin: 2px 0 5px;
+}
+
+.audio-health-heading p,
+.audio-health-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.audio-health-actions {
+  justify-content: flex-start;
+  margin: 16px 0 12px;
+}
+
+.audio-health-actions .primary-button {
+  width: auto;
+  min-width: 112px;
+}
+
+#audioHealthStatus {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.audio-health-table-wrap {
+  max-height: calc(100vh - 210px);
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: rgba(255,255,255,.5);
+}
+
+.audio-health-table {
+  width: 100%;
+  min-width: 1040px;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.audio-health-table th,
+.audio-health-table td {
+  padding: 10px;
+  border-bottom: 1px solid var(--line);
+  border-right: 1px solid var(--line);
+  text-align: left;
+  vertical-align: top;
+}
+
+.audio-health-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  color: var(--ink);
+  background: color-mix(in srgb, var(--panel) 96%, white);
+  white-space: nowrap;
+}
+
+.audio-health-table td:last-child,
+.audio-health-table th:last-child {
+  border-right: 0;
+}
+
+.audio-health-table tr:last-child td {
+  border-bottom: 0;
+}
+
+.audio-health-status {
+  min-width: 92px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.audio-health-status.is-ok { color: #38785b; }
+.audio-health-status.is-missing { color: #a64d43; }
+.audio-health-status.is-empty { color: #8a735d; }
+.audio-health-status.is-checking { color: var(--muted); }
+
+.audio-health-url {
+  display: block;
+  max-width: 290px;
+  color: var(--accent-dark);
+  overflow-wrap: anywhere;
+  text-decoration: none;
+}
+
+.audio-health-url:hover {
+  text-decoration: underline;
+}
+
+.audio-health-note {
+  margin-top: 10px;
+  line-height: 1.6;
 }
 
 .bottom-nav {
@@ -1984,6 +2129,31 @@ textarea:focus-visible {
   .floating-player { right: 10px; left: 10px; width: calc(100% - 20px); }
   .floating-player-controls { grid-template-columns: 40px minmax(66px,1fr) 40px 50px; gap: 5px; }
   .mood-button { font-size: 12px; }
+}
+
+@media (max-width: 640px) {
+  .audio-debug-panel {
+    max-height: 31vh;
+  }
+
+  .audio-health-card {
+    padding: 14px;
+    border-radius: 20px;
+  }
+
+  .audio-health-heading {
+    align-items: flex-start;
+  }
+
+  .audio-health-actions {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .audio-health-table-wrap {
+    max-height: calc(100vh - 245px);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
