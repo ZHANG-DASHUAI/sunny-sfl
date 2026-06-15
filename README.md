@@ -809,7 +809,13 @@ body.theme-maple {
 后台地址：
 
 ```text
-https://你的项目.pages.dev/admin
+/admin
+```
+
+后台密码：
+
+```text
+888888
 ```
 
 后台显示：
@@ -836,13 +842,7 @@ https://你的项目.pages.dev/admin
    KV namespace: MUSIC_BOX_STATS
    ```
 
-4. 在 Worker 的变量里添加后台密码：
-
-   ```text
-   ADMIN_PASSWORD=你自己的后台密码
-   ```
-
-5. 不要把后台密码写进 GitHub，不要写进 `script.js` 或 `admin.js`。
+4. 当前后台密码在 `worker.js` 中设置为 `888888`。
 
 ### Worker 部署步骤
 
@@ -851,9 +851,8 @@ https://你的项目.pages.dev/admin
 1. 新建 Worker。
 2. 把 `worker.js` 的内容复制进去。
 3. 绑定 KV：`STATS_KV`。
-4. 添加变量：`ADMIN_PASSWORD`。
-5. 部署 Worker。
-6. 记下 Worker 地址，例如：
+4. 部署 Worker。
+5. 记下 Worker 地址，例如：
 
    ```text
    https://music-box-stats.your-name.workers.dev
@@ -871,13 +870,7 @@ https://你的项目.pages.dev/admin
    id = "你的 KV namespace id"
    ```
 
-4. 设置后台密码：
-
-   ```powershell
-   wrangler secret put ADMIN_PASSWORD
-   ```
-
-5. 部署：
+4. 部署：
 
    ```powershell
    wrangler deploy worker.js
@@ -924,7 +917,6 @@ const STATS_WORKER_URL = "https://你的-worker.workers.dev";
 ### 安全提醒
 
 - `/admin` 只是隐藏入口，不是公开按钮。
-- 后台真正的保护在 Worker 的 `ADMIN_PASSWORD`。
-- `ADMIN_PASSWORD` 只放在 Cloudflare Worker 环境变量里。
+- 当前后台密码由 `worker.js` 验证，密码是 `888888`。
 - KV 只保存统计日志，不保存 R2 密钥、GitHub 密钥或 Cloudflare Token。
 - 如果统计接口请求失败，前台会静默忽略，不会影响播放。
