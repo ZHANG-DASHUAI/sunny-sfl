@@ -785,3 +785,146 @@ body.theme-maple {
 3. QQ 音乐链接或搜索页可以正常打开。
 4. 晴天和枫主题都能切换。
 5. 轻唱模式的时间轴与自己的录音一致。
+## 隐藏访问统计后台
+
+项目新增了一个完全隐藏的访问统计系统。普通用户页面不会出现任何按钮，也不会影响音乐播放、歌词高亮、R2 音频加载或自动下一首。
+
+新增文件：
+
+- `worker.js`：Cloudflare Worker 后端，负责写入和读取 KV。
+- `admin.html`：隐藏后台页面。
+- `admin.js`：后台登录和数据展示逻辑。
+- `_redirects`：让 `/admin` 打开后台，并把 `/api/*` 转发到 Worker。
+
+前台会静默记录：
+
+- 用户打开网站：时间、页面、UserAgent、手机或电脑。
+- 歌曲真正开始播放：`songId`、中文歌名、模式。
+- 模式包括：静听、原声陪唱、轻伴唱。
+- 手动上一首 / 下一首切歌。
+- 歌曲结束后的自动下一首。
+- 最后访问时间。
+- 每首歌累计播放次数。
+
+后台地址：
+
+```text
+https://你的项目.pages.dev/admin
+```
+
+后台显示：
+
+- 最近访问
+- 最近播放
+- 最近切歌
+- 播放排行榜
+- 最后在线时间
+
+### KV 配置步骤
+
+1. 在 Cloudflare 控制台进入 `Workers & Pages`。
+2. 创建一个 KV namespace，例如：
+
+   ```text
+   MUSIC_BOX_STATS
+   ```
+
+3. 打开统计 Worker 的设置，添加 KV 绑定：
+
+   ```text
+   Variable name: STATS_KV
+   KV namespace: MUSIC_BOX_STATS
+   ```
+
+4. 在 Worker 的变量里添加后台密码：
+
+   ```text
+   ADMIN_PASSWORD=你自己的后台密码
+   ```
+
+5. 不要把后台密码写进 GitHub，不要写进 `script.js` 或 `admin.js`。
+
+### Worker 部署步骤
+
+方式一：Cloudflare 控制台部署。
+
+1. 新建 Worker。
+2. 把 `worker.js` 的内容复制进去。
+3. 绑定 KV：`STATS_KV`。
+4. 添加变量：`ADMIN_PASSWORD`。
+5. 部署 Worker。
+6. 记下 Worker 地址，例如：
+
+   ```text
+   https://music-box-stats.your-name.workers.dev
+   ```
+
+方式二：Wrangler 部署。
+
+1. 安装并登录 Wrangler。
+2. 创建 KV namespace。
+3. 在 Worker 项目里绑定：
+
+   ```toml
+   [[kv_namespaces]]
+   binding = "STATS_KV"
+   id = "你的 KV namespace id"
+   ```
+
+4. 设置后台密码：
+
+   ```powershell
+   wrangler secret put ADMIN_PASSWORD
+   ```
+
+5. 部署：
+
+   ```powershell
+   wrangler deploy worker.js
+   ```
+
+### Pages 连接 Worker
+
+推荐用同域路径，这样前台代码不用暴露 Worker 域名。
+
+1. 打开 `_redirects`。
+2. 把这一行里的占位地址：
+
+   ```text
+   /api/* https://YOUR-STATS-WORKER.workers.dev/api/:splat 200
+   ```
+
+   改成你真实的 Worker 地址，例如：
+
+   ```text
+   /api/* https://music-box-stats.your-name.workers.dev/api/:splat 200
+   ```
+
+3. 重新部署 Cloudflare Pages。
+4. 打开网站后，前台会静默请求：
+
+   ```text
+   /api/stats
+   ```
+
+5. 打开后台时，`admin.js` 会请求：
+
+   ```text
+   /api/admin/summary
+   ```
+
+如果不想使用 `_redirects`，也可以分别在 `script.js` 和 `admin.js` 顶部填写：
+
+```js
+const STATS_WORKER_URL = "https://你的-worker.workers.dev";
+```
+
+两个文件里的地址要保持一致。
+
+### 安全提醒
+
+- `/admin` 只是隐藏入口，不是公开按钮。
+- 后台真正的保护在 Worker 的 `ADMIN_PASSWORD`。
+- `ADMIN_PASSWORD` 只放在 Cloudflare Worker 环境变量里。
+- KV 只保存统计日志，不保存 R2 密钥、GitHub 密钥或 Cloudflare Token。
+- 如果统计接口请求失败，前台会静默忽略，不会影响播放。

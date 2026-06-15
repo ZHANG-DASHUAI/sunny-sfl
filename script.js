@@ -2139,6 +2139,100 @@ const LYRICS_STORAGE_PREFIX = "musicBoxLyricsTimed_";
 const LEGACY_LYRICS_STORAGE_PREFIX = "musicBoxLyrics_";
 const PLAY_MODE_STORAGE_KEY = "musicBoxPlayMode";
 const SING_VOLUME_STORAGE_KEY = "musicBoxSingVolume";
+const STATS_WORKER_URL = "";
+const STATS_CLIENT_STORAGE_KEY = "musicBoxStatsClientId";
+
+let lastTrackedPlayKey = "";
+
+function getStatsEndpoint(path) {
+  if (!STATS_WORKER_URL) return path;
+  try {
+    return new URL(path, STATS_WORKER_URL).href;
+  } catch (error) {
+    return path;
+  }
+}
+
+function getStatsClientId() {
+  try {
+    let clientId = localStorage.getItem(STATS_CLIENT_STORAGE_KEY);
+    if (!clientId) {
+      clientId = `client_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+      localStorage.setItem(STATS_CLIENT_STORAGE_KEY, clientId);
+    }
+    return clientId;
+  } catch (error) {
+    return "client_unknown";
+  }
+}
+
+function getDeviceType() {
+  const ua = navigator.userAgent || "";
+  return /Mobile|Android|iPhone|iPad|iPod|Windows Phone/i.test(ua) ? "mobile" : "desktop";
+}
+
+function getStatsPlaybackMode() {
+  if (currentPlaybackContext === "sing") {
+    return singAccompanyMode === "instrumental" ? "\u8f7b\u4f34\u5531" : "\u539f\u58f0\u966a\u5531";
+  }
+  return "\u9759\u542c";
+}
+
+function sendStatsEvent(type, payload = {}) {
+  const body = {
+    type,
+    clientId: getStatsClientId(),
+    page: `${window.location.pathname}${window.location.search}`,
+    userAgent: navigator.userAgent || "",
+    device: getDeviceType(),
+    timestamp: new Date().toISOString(),
+    ...payload
+  };
+
+  try {
+    fetch(getStatsEndpoint("/api/stats"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      keepalive: true
+    }).catch(() => {});
+  } catch (error) {
+    // Analytics should never affect the music experience.
+  }
+}
+
+function trackVisit() {
+  sendStatsEvent("visit");
+}
+
+function trackCurrentPlayback(reason = "play") {
+  if (!currentSong) return;
+  const mode = getStatsPlaybackMode();
+  const src = getCurrentAudioSrc();
+  const key = `${currentSong.id}|${mode}|${src}|${reason}`;
+  if (reason === "playing" && key === lastTrackedPlayKey) return;
+  lastTrackedPlayKey = key;
+  sendStatsEvent("play", {
+    songId: currentSong.id,
+    title: currentSong.title,
+    mode,
+    audioField: getCurrentAudioField(),
+    reason
+  });
+}
+
+function trackSongSwitch(reason, fromSong) {
+  if (!currentSong) return;
+  sendStatsEvent("switch", {
+    fromSongId: fromSong?.id || "",
+    fromTitle: fromSong?.title || "",
+    toSongId: currentSong.id,
+    toTitle: currentSong.title,
+    mode: getStatsPlaybackMode(),
+    playMode,
+    reason
+  });
+}
 
 try {
   const savedPlayMode = localStorage.getItem(PLAY_MODE_STORAGE_KEY);
@@ -3122,12 +3216,17 @@ async function playNextSongInCurrentMode(direction = 1, options = {}) {
 }
 
 async function playNextSong() {
+  const fromSong = currentSong;
   await playNextSongInCurrentMode(1);
+  if (currentSong && currentSong.id !== fromSong?.id) {
+    trackSongSwitch("manual-next", fromSong);
+  }
   updateFloatingPlayer();
 }
 
 async function handleAudioEnded() {
   if (!currentSong) return;
+  const fromSong = currentSong;
   setAudioStatus("这首听完啦");
   updatePlayButtonText(false);
   $("#singPlayButton").textContent = "开始轻唱";
@@ -3137,15 +3236,19 @@ async function handleAudioEnded() {
 
   if (playMode === "repeat-one") {
     await replayCurrentSongInCurrentMode();
+    trackSongSwitch("auto-repeat", fromSong);
     return;
   }
   await playNextSongInCurrentMode(1, { autoAdvance: true });
+  if (currentSong) trackSongSwitch("auto-next", fromSong);
 }
 
 async function playPreviousSong() {
+  const fromSong = currentSong;
   if (!songs.length) return;
   if (!currentSong) {
     await playSongByIndex(songs.length - 1);
+    if (currentSong) trackSongSwitch("manual-previous", fromSong);
     return;
   }
 
@@ -3174,6 +3277,9 @@ async function playPreviousSong() {
     }
   } else {
     await playNextSongInCurrentMode(-1);
+  }
+  if (currentSong && currentSong.id !== fromSong?.id) {
+    trackSongSwitch("manual-previous", fromSong);
   }
   updateFloatingPlayer();
 }
@@ -4480,6 +4586,7 @@ audioPlayer.addEventListener("playing", () => {
   updateMediaPlaybackState("playing");
   updateFloatingPlayer();
   updateAudioDebugPanel();
+  trackCurrentPlayback("playing");
 });
 
 audioPlayer.addEventListener("error", () => {
@@ -4671,6 +4778,7 @@ setMediaSessionHandlers();
 updateProgressControls({ force: true });
 updateBottomNavVisibility();
 initializeAudioDebugPanel();
+trackVisit();
 
 window.addEventListener("beforeunload", () => {
   stopRecordingTracks();
