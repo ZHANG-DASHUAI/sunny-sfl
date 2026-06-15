@@ -794,7 +794,8 @@ body.theme-maple {
 - `worker.js`：Cloudflare Worker 后端，负责写入和读取 KV。
 - `admin.html`：隐藏后台页面。
 - `admin.js`：后台登录和数据展示逻辑。
-- `_redirects`：让 `/admin` 打开后台，并把 `/api/*` 转发到 Worker。
+- `admin/index.html`：让 `/admin` 直接打开后台。
+- `functions/`：Cloudflare Pages Functions，同域处理统计写入和后台查询。
 
 前台会静默记录：
 
@@ -876,43 +877,33 @@ body.theme-maple {
    wrangler deploy worker.js
    ```
 
-### Pages 连接 Worker
+### Pages Functions 配置
 
-推荐用同域路径，这样前台代码不用暴露 Worker 域名。
+项目已经把接口放进 `functions/`，不再需要 `_redirects` 或单独填写 Worker 地址。
 
-1. 打开 `_redirects`。
-2. 把这一行里的占位地址：
-
-   ```text
-   /api/* https://YOUR-STATS-WORKER.workers.dev/api/:splat 200
-   ```
-
-   改成你真实的 Worker 地址，例如：
+1. 打开 Cloudflare Pages 项目的 `Settings`。
+2. 在 `Functions` 的 KV namespace bindings 中添加：
 
    ```text
-   /api/* https://music-box-stats.your-name.workers.dev/api/:splat 200
+   Variable name: STATS_KV
+   KV namespace: MUSIC_BOX_STATS
    ```
 
-3. 重新部署 Cloudflare Pages。
-4. 打开网站后，前台会静默请求：
+3. Production 和 Preview 环境建议都绑定。
+4. 重新部署 Cloudflare Pages。
+5. 打开网站后，前台会静默请求：
 
    ```text
    /api/stats
    ```
 
-5. 打开后台时，`admin.js` 会请求：
+6. 打开后台时，`admin.js` 会请求：
 
    ```text
    /api/admin/summary
    ```
 
-如果不想使用 `_redirects`，也可以分别在 `script.js` 和 `admin.js` 顶部填写：
-
-```js
-const STATS_WORKER_URL = "https://你的-worker.workers.dev";
-```
-
-两个文件里的地址要保持一致。
+`script.js` 和 `admin.js` 中的 `STATS_WORKER_URL` 保持为空即可，接口会使用当前 Pages 域名。
 
 ### 安全提醒
 

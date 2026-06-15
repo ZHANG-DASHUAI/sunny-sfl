@@ -1,2 +1,0 @@
-/admin /admin.html 200
-/api/* https://YOUR-STATS-WORKER.workers.dev/api/:splat 200
