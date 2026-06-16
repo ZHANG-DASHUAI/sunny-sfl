@@ -2202,6 +2202,7 @@ function sendStatsEvent(type, payload = {}) {
 }
 
 function trackVisit() {
+  if (window.location.pathname.startsWith("/admin")) return;
   sendStatsEvent("visit");
 }
 

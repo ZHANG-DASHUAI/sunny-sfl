@@ -37,6 +37,11 @@ function escapeHtml(value) {
     .replaceAll("'", "&#039;");
 }
 
+function showUnknown(value) {
+  const text = String(value ?? "").trim();
+  return text || "未知";
+}
+
 function renderRows(tbody, rows, template) {
   tbody.innerHTML = rows.length
     ? rows.map(template).join("")
@@ -84,8 +89,12 @@ function renderSummary(data) {
   renderRows(visitsBody, data.recentVisits || [], (item) => `
     <tr>
       <td>${formatDate(item.time)}</td>
+      <td>${escapeHtml(showUnknown(item.country))}</td>
+      <td>${escapeHtml(showUnknown(item.city || item.region))}</td>
+      <td>${escapeHtml(showUnknown(item.timezone))}</td>
+      <td>${escapeHtml(showUnknown(item.ip))}</td>
+      <td>${escapeHtml(showUnknown(item.device))}</td>
       <td>${escapeHtml(item.page)}</td>
-      <td>${escapeHtml(item.device)}</td>
       <td>${escapeHtml(item.userAgent)}</td>
     </tr>
   `);

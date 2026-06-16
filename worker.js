@@ -23,6 +23,32 @@ function getClientIp(request) {
   return request.headers.get("CF-Connecting-IP") || "";
 }
 
+function maskIp(ip) {
+  if (!ip) return "";
+  if (ip.includes(".")) {
+    const parts = ip.split(".");
+    if (parts.length === 4) return `${parts[0]}.${parts[1]}.${parts[2]}.xxx`;
+  }
+  if (ip.includes(":")) {
+    const parts = ip.split(":").filter(Boolean);
+    return `${parts.slice(0, 3).join(":")}:xxxx`;
+  }
+  return "xxx";
+}
+
+function getLocationInfo(request) {
+  const cf = request.cf || {};
+  const ip = getClientIp(request);
+  return {
+    country: normalizeText(cf.country),
+    city: normalizeText(cf.city),
+    region: normalizeText(cf.region),
+    timezone: normalizeText(cf.timezone),
+    colo: normalizeText(cf.colo),
+    ip: maskIp(ip)
+  };
+}
+
 function getAdminPassword(request) {
   const auth = request.headers.get("Authorization") || "";
   if (auth.startsWith("Bearer ")) return auth.slice(7).trim();
@@ -80,7 +106,7 @@ async function handleStats(request, env) {
     userAgent: normalizeText(payload.userAgent),
     device: normalizeText(payload.device),
     clientId: normalizeText(payload.clientId),
-    ip: getClientIp(request)
+    ...getLocationInfo(request)
   };
 
   await env.STATS_KV.put("lastAccess", JSON.stringify(base));
