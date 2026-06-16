@@ -969,7 +969,6 @@ const songs = [
       ]
     }
   ),
-  createSong("ben-cao-gang-mu", "本草纲目", ["想放空一下"], AUDIO_NORMAL_BASE_URL + "ben-cao-gang-mu.mp3", "适合把脑袋里的烦恼晃掉一点，节奏一来心情就松了。"),
   createSong(
     "bu-gai",
     "不该",
