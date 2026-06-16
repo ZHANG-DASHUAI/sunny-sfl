@@ -2550,7 +2550,6 @@ const songs = [
       ]
     }
   ),
-  createSong("yi-fu-zhi-ming", "以父之名", ["想放空一下"], AUDIO_NORMAL_BASE_URL + "yi-fu-zhi-ming.mp3", "适合想听一点电影感的时候，氛围一下就来了。"),
   createSong(
     "yi-lu-xiang-bei",
     "一路向北",
