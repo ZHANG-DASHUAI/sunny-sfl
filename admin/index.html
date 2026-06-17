@@ -257,7 +257,7 @@
             </select>
           </label>
           <button id="showRecentButton" type="button" class="secondary">最近访问</button>
-          <button id="showTimelineButton" type="button" class="secondary">行为时间线</button>
+          <button id="showTimelineButton" type="button" class="secondary">听歌记录</button>
           <button id="clearStatsButton" type="button" class="secondary">清空访问记录</button>
           <button id="refreshButton" type="button">刷新</button>
           <button id="logoutButton" type="button" class="secondary">退出</button>
@@ -370,19 +370,17 @@
       </section>
 
       <section class="admin-card admin-panel" id="timelinePanel">
-        <h2>行为时间线</h2>
-        <p class="muted" id="timelineHint">默认显示全部访客的最近行为；点击某个访客后会自动筛选。</p>
+        <h2>听歌记录</h2>
+        <p class="muted" id="timelineHint">默认只显示听了什么歌、听了多久、是静听还是陪唱；点击某个访客后会自动筛选。</p>
         <div class="table-wrap">
           <table class="wide-table">
             <thead>
               <tr>
                 <th>时间</th>
-                <th>事件</th>
-                <th>对象</th>
-                <th>模式/说明</th>
-                <th>设备</th>
-                <th>IP归属地</th>
-                <th>页面</th>
+                <th>歌曲</th>
+                <th>模式</th>
+                <th>听了多久</th>
+                <th>状态</th>
               </tr>
             </thead>
             <tbody id="eventsBody"></tbody>

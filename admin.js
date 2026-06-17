@@ -117,6 +117,32 @@ function listSummary(items, labelKey, emptyText = "--") {
   return items.slice(0, 5).map((item) => escapeHtml(item[labelKey] || item.title || item.songName || item.pagePath || item.mood || "--")).join("<br>");
 }
 
+function listeningRows(rows) {
+  const types = new Set(["play", "pause", "ended", "song_change", "next_song", "prev_song"]);
+  return (rows || []).filter((item) => {
+    if (!types.has(item.type)) return false;
+    return item.songName || item.title || item.toTitle || item.fromTitle || item.songId || item.toSongId || item.fromSongId;
+  });
+}
+
+function listeningSongName(item) {
+  return item.songName || item.title || item.toTitle || item.fromTitle || item.songId || item.toSongId || item.fromSongId || "--";
+}
+
+function listeningDuration(item) {
+  if (Number(item.listenedSeconds || 0) > 0) return formatDuration(item.listenedSeconds);
+  if (Number(item.currentSecond || 0) > 0 && item.type !== "play") return formatDuration(item.currentSecond);
+  return item.type === "play" ? "刚开始" : "--";
+}
+
+function listeningStatus(item) {
+  if (item.type === "ended" || item.isFinished) return "听完";
+  if (item.type === "pause") return "暂停";
+  if (item.type === "song_change" || item.type === "next_song" || item.type === "prev_song") return "切歌";
+  if (item.type === "play") return "播放";
+  return "--";
+}
+
 function geoText(item) {
   const geo = item.preciseGeo || {};
   if (geo.geoAuthorized === true) {
@@ -172,17 +198,16 @@ function renderVisitorDetail(visitorId) {
 }
 
 function renderEvents(rows) {
-  renderRows(eventsBody, rows || [], (item) => `
+  const rowsToRender = listeningRows(rows);
+  renderRows(eventsBody, rowsToRender, (item) => `
     <tr>
       <td>${formatDate(item.time || item.createdAt)}</td>
-      <td><span class="tag">${escapeHtml(eventLabel(item.type))}</span></td>
-      <td>${escapeHtml(item.title || item.songName || item.toTitle || item.mood || "--")}</td>
-      <td>${escapeHtml(showUnknown(item.mode || item.reason || item.playMode))}</td>
-      <td>${escapeHtml(showUnknown(item.deviceType || item.device))}</td>
-      <td>${escapeHtml(locationText(item))}</td>
-      <td>${escapeHtml(showUnknown(item.pagePath || item.page))}</td>
+      <td>${escapeHtml(listeningSongName(item))}</td>
+      <td><span class="tag">${escapeHtml(showUnknown(item.playMode || item.mode))}</span></td>
+      <td>${escapeHtml(listeningDuration(item))}</td>
+      <td>${escapeHtml(listeningStatus(item))}</td>
     </tr>
-  `, 7);
+  `, 5);
 }
 
 async function fetchSummary(password) {
