@@ -2850,8 +2850,11 @@ const PLAY_MODE_STORAGE_KEY = "musicBoxPlayMode";
 const SING_VOLUME_STORAGE_KEY = "musicBoxSingVolume";
 const STATS_WORKER_URL = "";
 const STATS_CLIENT_STORAGE_KEY = "musicBoxStatsClientId";
+const STATS_SESSION_STORAGE_KEY = "musicBoxStatsSessionId";
 
 let lastTrackedPlayKey = "";
+let statsEngagementTimer = null;
+let suppressNextPauseStats = false;
 
 function getStatsEndpoint(path) {
   if (!STATS_WORKER_URL) return path;
@@ -2875,9 +2878,32 @@ function getStatsClientId() {
   }
 }
 
+function getStatsSessionId() {
+  try {
+    let sessionId = sessionStorage.getItem(STATS_SESSION_STORAGE_KEY);
+    if (!sessionId) {
+      sessionId = `session_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+      sessionStorage.setItem(STATS_SESSION_STORAGE_KEY, sessionId);
+    }
+    return sessionId;
+  } catch (error) {
+    return `session_${Date.now()}_unknown`;
+  }
+}
+
 function getDeviceType() {
   const ua = navigator.userAgent || "";
   return /Mobile|Android|iPhone|iPad|iPod|Windows Phone/i.test(ua) ? "mobile" : "desktop";
+}
+
+function getBrowserName() {
+  const ua = navigator.userAgent || "";
+  if (/MicroMessenger/i.test(ua)) return "WeChat";
+  if (/Edg\//i.test(ua)) return "Edge";
+  if (/Chrome\//i.test(ua) && !/Edg\//i.test(ua)) return "Chrome";
+  if (/Safari\//i.test(ua) && !/Chrome\//i.test(ua)) return "Safari";
+  if (/Firefox\//i.test(ua)) return "Firefox";
+  return "Unknown";
 }
 
 function getStatsPlaybackMode() {
@@ -2891,9 +2917,16 @@ function sendStatsEvent(type, payload = {}) {
   const body = {
     type,
     clientId: getStatsClientId(),
+    sessionId: getStatsSessionId(),
     page: `${window.location.pathname}${window.location.search}`,
+    referrer: document.referrer || "",
+    language: navigator.language || "",
+    screenWidth: window.screen?.width || 0,
+    screenHeight: window.screen?.height || 0,
     userAgent: navigator.userAgent || "",
+    browser: getBrowserName(),
     device: getDeviceType(),
+    isWeChat: /MicroMessenger/i.test(navigator.userAgent || ""),
     timestamp: new Date().toISOString(),
     ...payload
   };
@@ -2912,15 +2945,19 @@ function sendStatsEvent(type, payload = {}) {
 
 function trackVisit() {
   if (window.location.pathname.startsWith("/admin")) return;
-  sendStatsEvent("visit");
+  sendStatsEvent("page_view");
+  window.clearTimeout(statsEngagementTimer);
+  statsEngagementTimer = window.setTimeout(() => {
+    sendStatsEvent("page_view", { reason: "active-10s" });
+  }, 10000);
 }
 
-function trackCurrentPlayback(reason = "play") {
+function trackCurrentPlayback(reason = "play", options = {}) {
   if (!currentSong) return;
   const mode = getStatsPlaybackMode();
   const src = getCurrentAudioSrc();
   const key = `${currentSong.id}|${mode}|${src}|${reason}`;
-  if (reason === "playing" && key === lastTrackedPlayKey) return;
+  if (reason === "playing" && key === lastTrackedPlayKey && !options.force) return;
   lastTrackedPlayKey = key;
   sendStatsEvent("play", {
     songId: currentSong.id,
@@ -2931,9 +2968,20 @@ function trackCurrentPlayback(reason = "play") {
   });
 }
 
+function trackPause() {
+  if (!currentSong || !loadedSongId) return;
+  sendStatsEvent("pause", {
+    songId: currentSong.id,
+    title: currentSong.title,
+    mode: getStatsPlaybackMode(),
+    audioField: getCurrentAudioField(),
+    currentTime: Number((audioPlayer.currentTime || 0).toFixed(2))
+  });
+}
+
 function trackSongSwitch(reason, fromSong) {
   if (!currentSong) return;
-  sendStatsEvent("switch", {
+  sendStatsEvent("song_change", {
     fromSongId: fromSong?.id || "",
     fromTitle: fromSong?.title || "",
     toSongId: currentSong.id,
@@ -2941,6 +2989,23 @@ function trackSongSwitch(reason, fromSong) {
     mode: getStatsPlaybackMode(),
     playMode,
     reason
+  });
+}
+
+function trackLyricOpen(source = "disc") {
+  if (!currentSong) return;
+  sendStatsEvent("lyric_open", {
+    songId: currentSong.id,
+    title: currentSong.title,
+    mode: getStatsPlaybackMode(),
+    source
+  });
+}
+
+function trackMoodClick(mood) {
+  sendStatsEvent("mood_click", {
+    mood,
+    reason: "mood-button"
   });
 }
 
@@ -3562,6 +3627,7 @@ async function playCurrentSong() {
   }
 
   if (audioPlayer.src !== audioUrl) {
+    suppressNextPauseStats = true;
     audioPlayer.pause();
     audioPlayer.src = audioUrl;
     audioPlayer.load();
@@ -3614,6 +3680,7 @@ function prepareSingAudioSource(src) {
   applyPlaybackVolume();
 
   if (audioPlayer.src !== audioUrl) {
+    suppressNextPauseStats = true;
     audioPlayer.pause();
     audioPlayer.src = audioUrl;
     audioPlayer.load();
@@ -3793,6 +3860,7 @@ function openLyricPageFromDisc() {
     return;
   }
   mainDiscHint.textContent = "轻点唱片，看歌词";
+  trackLyricOpen("main-disc");
   if (currentPlaybackContext === "sing" || currentMode === "sing") {
     openSingMode({ preserveAccompaniment: true });
   } else {
@@ -4130,6 +4198,7 @@ function openCurrentSongListenView() {
   }
 
   currentSource = "floating";
+  trackLyricOpen("floating-player");
   if (currentPlaybackContext === "sing") {
     openSingMode({ preserveAccompaniment: true });
   } else {
@@ -5090,7 +5159,10 @@ document.addEventListener("keydown", (event) => {
 });
 
 $$(".mood-button").forEach((button) => {
-  button.addEventListener("click", () => drawSong(button.dataset.mood));
+  button.addEventListener("click", () => {
+    trackMoodClick(button.dataset.mood);
+    drawSong(button.dataset.mood);
+  });
 });
 
 $("#secretButton").addEventListener("click", () => drawSong("彩蛋"));
@@ -5263,6 +5335,11 @@ audioPlayer.addEventListener("pause", () => {
   $("#singPlayButton").textContent = "开始轻唱";
   updateMediaPlaybackState("paused");
   updateFloatingPlayer();
+  if (suppressNextPauseStats) {
+    suppressNextPauseStats = false;
+  } else if (!audioPlayer.ended) {
+    trackPause();
+  }
 });
 
 audioPlayer.addEventListener("ended", handleAudioEnded);

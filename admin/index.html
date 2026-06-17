@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>JAY音乐盒</title>
+  <title>JAY音乐盒后台</title>
   <style>
     :root {
       color-scheme: light;
@@ -26,7 +26,7 @@
     }
 
     .admin-shell {
-      width: min(1100px, 100%);
+      width: min(1280px, 100%);
       margin: 0 auto;
     }
 
@@ -53,11 +53,20 @@
       font-size: 18px;
     }
 
+    .muted,
+    .muted-small {
+      color: #7d7168;
+    }
+
     .muted {
       margin: 0;
-      color: #7d7168;
       font-size: 14px;
       line-height: 1.7;
+    }
+
+    .muted-small {
+      font-size: 12px;
+      line-height: 1.6;
     }
 
     .login-row {
@@ -113,9 +122,13 @@
 
     table {
       width: 100%;
-      min-width: 680px;
+      min-width: 760px;
       border-collapse: collapse;
       font-size: 13px;
+    }
+
+    .wide-table {
+      min-width: 1080px;
     }
 
     th,
@@ -140,6 +153,21 @@
       background: rgba(95, 143, 201, 0.12);
       color: #3d6c9d;
       white-space: nowrap;
+    }
+
+    .tag.is-human {
+      background: rgba(70, 156, 109, 0.14);
+      color: #297247;
+    }
+
+    .tag.is-bot {
+      background: rgba(201, 110, 78, 0.14);
+      color: #9a4a2b;
+    }
+
+    .tag.is-watch {
+      background: rgba(179, 140, 62, 0.16);
+      color: #835f19;
     }
 
     .status {
@@ -175,8 +203,8 @@
 <body>
   <main class="admin-shell">
     <section class="admin-card" id="loginCard">
-      <h1>音乐盒隐藏后台</h1>
-      <p class="muted">输入后台密码后查看最近访问、最近播放、排行榜和最后在线时间。</p>
+      <h1>JAY音乐盒隐藏后台</h1>
+      <p class="muted">输入后台密码后查看最近访问、行为事件、最近播放、播放排行和最后在线时间。</p>
       <div class="login-row">
         <input id="passwordInput" type="password" autocomplete="current-password" placeholder="后台密码">
         <button id="loginButton" type="button">进入后台</button>
@@ -187,14 +215,37 @@
     <section id="dashboard" hidden>
       <div class="admin-card toolbar">
         <div>
-          <h1>音乐盒统计</h1>
-          <p class="muted" id="lastAccessText">最后在线时间：--</p>
+          <h1>JAY音乐盒统计</h1>
+          <p class="muted" id="lastAccessText">最后访问时间：--</p>
+          <p class="muted">位置来自 Cloudflare IP 归属地，只显示大概国家/城市和脱敏 IP，不记录精确定位。</p>
         </div>
         <div>
           <button id="refreshButton" type="button">刷新</button>
           <button id="logoutButton" type="button" class="secondary">退出</button>
         </div>
       </div>
+
+      <section class="admin-card">
+        <h2>最近访客 Session</h2>
+        <div class="table-wrap">
+          <table class="wide-table">
+            <thead>
+              <tr>
+                <th>最近访问</th>
+                <th>判断</th>
+                <th>IP归属地</th>
+                <th>脱敏 IP</th>
+                <th>设备 / 浏览器</th>
+                <th>停留时长</th>
+                <th>播放次数</th>
+                <th>最后播放</th>
+                <th>来源</th>
+              </tr>
+            </thead>
+            <tbody id="sessionsBody"></tbody>
+          </table>
+        </div>
+      </section>
 
       <div class="grid">
         <section class="admin-card">
@@ -245,7 +296,7 @@
                 <th>songId</th>
                 <th>模式</th>
                 <th>设备</th>
-                <th>页面</th>
+                <th>IP归属地</th>
               </tr>
             </thead>
             <tbody id="playsBody"></tbody>
@@ -254,22 +305,21 @@
       </section>
 
       <section class="admin-card">
-        <h2>最近访问</h2>
+        <h2>最近行为事件</h2>
         <div class="table-wrap">
-          <table>
+          <table class="wide-table">
             <thead>
               <tr>
                 <th>时间</th>
-                <th>国家</th>
-                <th>城市</th>
-                <th>时区</th>
-                <th>脱敏 IP</th>
+                <th>事件</th>
+                <th>对象</th>
+                <th>模式/说明</th>
                 <th>设备</th>
+                <th>IP归属地</th>
                 <th>页面</th>
-                <th>UserAgent</th>
               </tr>
             </thead>
-            <tbody id="visitsBody"></tbody>
+            <tbody id="eventsBody"></tbody>
           </table>
         </div>
       </section>
