@@ -110,6 +110,25 @@
       flex-wrap: wrap;
     }
 
+    .filter-row {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin-right: 8px;
+      color: #6c5b4c;
+      font-size: 13px;
+      white-space: nowrap;
+    }
+
+    .filter-row select {
+      min-height: 38px;
+      padding: 0 34px 0 12px;
+      border-radius: 999px;
+      border: 1px solid rgba(105, 83, 65, 0.18);
+      background: rgba(255, 255, 255, 0.92);
+      color: #5f5147;
+    }
+
     .grid {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -228,6 +247,15 @@
           <p class="muted">位置来自 Cloudflare IP 归属地，只显示大概国家/城市和脱敏 IP，不记录精确定位。</p>
         </div>
         <div>
+          <label class="filter-row" for="visitorTagFilter">
+            <span>分享对象</span>
+            <select id="visitorTagFilter">
+              <option value="all">全部</option>
+              <option value="me">me</option>
+              <option value="v1">v1</option>
+              <option value="unknown">unknown</option>
+            </select>
+          </label>
           <button id="showRecentButton" type="button" class="secondary">最近访问</button>
           <button id="showTimelineButton" type="button" class="secondary">行为时间线</button>
           <button id="clearStatsButton" type="button" class="secondary">清空访问记录</button>
@@ -244,6 +272,7 @@
             <thead>
               <tr>
                 <th>最近访问</th>
+                <th>分享对象</th>
                 <th>判断</th>
                 <th>IP归属地</th>
                 <th>脱敏 IP</th>
@@ -267,6 +296,7 @@
             <thead>
               <tr>
                 <th>开始时间</th>
+                <th>分享对象</th>
                 <th>最后活跃</th>
                 <th>停留时长</th>
                 <th>IP推测位置</th>

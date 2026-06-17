@@ -135,6 +135,7 @@ function makeEvent(request, payload, now) {
     type,
     visitorId,
     sessionId,
+    visitorTag: normalizeText(payload.visitorTag || "unknown") || "unknown",
     createdAt: now,
     time: now,
     clientId: normalizeText(payload.clientId),
@@ -269,6 +270,7 @@ async function updateSession(kv, event) {
     ...(current || {}),
     visitorId: event.visitorId,
     sessionId: event.sessionId,
+    visitorTag: event.visitorTag || current?.visitorTag || "unknown",
     createdAt,
     firstSeenAt: createdAt,
     lastActiveAt: event.createdAt,
@@ -329,6 +331,7 @@ async function updateVisitor(kv, session) {
   const visitor = {
     ...(current || {}),
     visitorId: session.visitorId,
+    visitorTag: session.visitorTag || current?.visitorTag || "unknown",
     createdAt: current?.createdAt || session.createdAt,
     lastActiveAt: session.lastActiveAt,
     sessionCount: Math.max(Number(current?.sessionCount || 0), 0),
@@ -350,6 +353,7 @@ async function updateVisitor(kv, session) {
     lastSongId: session.lastSongId,
     sessions: uniqueRecent(current?.sessions || [], {
       sessionId: session.sessionId,
+      visitorTag: session.visitorTag || "unknown",
       createdAt: session.createdAt,
       lastActiveAt: session.lastActiveAt,
       durationSeconds: session.durationSeconds,

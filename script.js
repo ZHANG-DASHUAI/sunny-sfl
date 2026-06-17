@@ -2852,6 +2852,7 @@ const STATS_WORKER_URL = "";
 const STATS_CLIENT_STORAGE_KEY = "musicBoxStatsClientId";
 const STATS_SESSION_STORAGE_KEY = "musicBoxStatsSessionId";
 const STATS_VISITOR_STORAGE_KEY = "musicBoxStatsVisitorId";
+const STATS_VISITOR_TAG_STORAGE_KEY = "visitorTag";
 
 let lastTrackedPlayKey = "";
 let statsPingTimer = null;
@@ -2907,6 +2908,27 @@ function getStatsSessionId() {
   }
 }
 
+function getVisitorTag() {
+  const params = new URLSearchParams(window.location.search);
+  const urlTag = params.get("to");
+
+  let visitorTag = localStorage.getItem(STATS_VISITOR_TAG_STORAGE_KEY);
+
+  if (urlTag) {
+    visitorTag = urlTag;
+    localStorage.setItem(STATS_VISITOR_TAG_STORAGE_KEY, visitorTag);
+  }
+
+  if (!visitorTag) {
+    visitorTag = "unknown";
+    localStorage.setItem(STATS_VISITOR_TAG_STORAGE_KEY, visitorTag);
+  }
+
+  return visitorTag;
+}
+
+const visitorTag = getVisitorTag();
+
 function getDeviceType() {
   const ua = navigator.userAgent || "";
   if (/iPad|Tablet|PlayBook|Silk/i.test(ua)) return "tablet";
@@ -2946,6 +2968,7 @@ function sendStatsEvent(type, payload = {}) {
     type,
     clientId: getStatsClientId(),
     visitorId: getStatsVisitorId(),
+    visitorTag,
     sessionId: getStatsSessionId(),
     page: `${window.location.pathname}${window.location.search}`,
     pagePath: window.location.pathname || "/",

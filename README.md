@@ -800,6 +800,7 @@ body.theme-maple {
 
 - `visitorId`：保存在 `localStorage`，用于识别同一个浏览器访客。
 - `sessionId`：同一个人同一次打开网页会归到同一个 session。
+- `visitorTag`：专属分享链接标记，例如 `?to=me`、`?to=v1`；没有参数时为 `unknown`。
 - 页面打开事件：`page_view`。
 - 页面隐藏或离开：`page_hide`。
 - 每 10 秒活跃心跳：`active_ping`，用于计算真实停留时长。
@@ -828,6 +829,15 @@ body.theme-maple {
 
 模式包括：静听、原声陪唱、轻伴唱。
 
+专属分享链接可以用来区分访问对象：
+
+```text
+https://你的项目.pages.dev/?to=me
+https://你的项目.pages.dev/?to=v1
+```
+
+第一次通过 `?to=v1` 打开后，`visitorTag` 会保存到浏览器 `localStorage`，后续不带参数打开也会继续识别为 `v1`。如果后来通过 `?to=me` 打开，会更新为 `me`。所有统计事件都会带上 `visitorTag`，包括 `page_view`、`active_ping`、`page_hide`、`play`、`pause`、`song_change`、`mood_click`、`lyric_open` 和 `mode_change`。
+
 默认访问位置来自 Cloudflare Pages Functions / Worker 的 `request.cf`，只能表示 IP 推测的大概国家、城市和时区，不保证精准到具体地址。如果 Cloudflare 没有返回位置，后台会显示“未知”。IP 只显示脱敏形式，例如 `1.2.3.xxx`，不会在前台页面显示。访问 `/admin` 后台本身不会写入访问日志。
 
 精准定位不会偷偷获取。只有用户在歌曲详情页主动点击：
@@ -855,6 +865,7 @@ body.theme-maple {
 - 最近访问。
 - 访客详情。
 - 行为时间线。
+- 分享对象 `visitorTag`，并支持筛选：全部、`me`、`v1`、`unknown`。
 - 最近访客 session。
 - 疑似真人 / 疑似机器人或预加载判断。
 - 最近访问时间。

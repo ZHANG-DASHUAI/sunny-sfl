@@ -12,6 +12,7 @@ const refreshButton = $("#refreshButton");
 const clearStatsButton = $("#clearStatsButton");
 const showRecentButton = $("#showRecentButton");
 const showTimelineButton = $("#showTimelineButton");
+const visitorTagFilter = $("#visitorTagFilter");
 const loginStatus = $("#loginStatus");
 const lastAccessText = $("#lastAccessText");
 const rankingBody = $("#rankingBody");
@@ -27,6 +28,7 @@ const switchBody = $("#switchBody");
 
 let latestSummary = null;
 let selectedVisitorId = "";
+let currentVisitorTagFilter = "all";
 
 function getEndpoint(path) {
   if (!STATS_WORKER_URL) return path;
@@ -124,6 +126,20 @@ function geoText(item) {
   return "未授权，仅 IP 推测";
 }
 
+function normalizeVisitorTag(value) {
+  const tag = String(value || "").trim();
+  return tag || "unknown";
+}
+
+function matchesVisitorTag(item) {
+  if (currentVisitorTagFilter === "all") return true;
+  return normalizeVisitorTag(item?.visitorTag) === currentVisitorTagFilter;
+}
+
+function filterByVisitorTag(rows) {
+  return (rows || []).filter(matchesVisitorTag);
+}
+
 function renderVisitorDetail(visitorId) {
   selectedVisitorId = visitorId;
   const sessions = (latestSummary?.recentSessions || [])
@@ -139,6 +155,7 @@ function renderVisitorDetail(visitorId) {
   renderRows(visitorSessionsBody, sessions, (item) => `
     <tr>
       <td>${formatDate(item.createdAt)}</td>
+      <td><span class="tag">${escapeHtml(normalizeVisitorTag(item.visitorTag))}</span></td>
       <td>${formatDate(item.lastActiveAt || item.lastSeenAt)}</td>
       <td>${formatDuration(item.durationSeconds)}</td>
       <td>${escapeHtml(locationText(item))}<br><span class="muted-small">${escapeHtml(showUnknown(item.ip))}</span></td>
@@ -148,7 +165,7 @@ function renderVisitorDetail(visitorId) {
       <td>${listSummary(item.songs, "songName")}</td>
       <td>${geoText(item.preciseGeo ? item : visitor || {})}</td>
     </tr>
-  `, 9);
+  `, 10);
 
   renderEvents(events);
   timelineHint.textContent = `当前只显示访客 ${visitorId} 的行为时间线。`;
@@ -196,9 +213,13 @@ function renderSummary(data) {
     </tr>
   `, 5);
 
-  renderRows(sessionsBody, data.recentSessions || data.recentVisits || [], (item) => `
+  const sessions = filterByVisitorTag(data.recentSessions || data.recentVisits || []);
+  const recentEvents = filterByVisitorTag(data.recentEvents || []);
+
+  renderRows(sessionsBody, sessions, (item) => `
     <tr class="session-row" data-visitor-id="${escapeHtml(item.visitorId || "")}">
       <td>${formatDate(item.lastActiveAt || item.lastSeenAt || item.time)}</td>
+      <td><span class="tag">${escapeHtml(normalizeVisitorTag(item.visitorTag))}</span></td>
       <td><span class="tag ${statusClass(item.humanStatus)}">${escapeHtml(item.humanStatus || "观察中")}</span></td>
       <td>${escapeHtml(locationText(item))}<br><span class="muted-small">${escapeHtml(showUnknown(item.timezone))}</span></td>
       <td>${escapeHtml(showUnknown(item.ip))}</td>
@@ -208,7 +229,7 @@ function renderSummary(data) {
       <td>${escapeHtml(sessionSongText(item))}<br><span class="muted-small">${escapeHtml(showUnknown(item.lastPlayMode))}</span></td>
       <td>${escapeHtml(showUnknown(item.referrer))}</td>
     </tr>
-  `, 9);
+  `, 10);
 
   renderRows(playsBody, data.recentPlays || [], (item) => `
     <tr>
@@ -232,8 +253,8 @@ function renderSummary(data) {
   `, 5);
 
   renderEvents(selectedVisitorId
-    ? (data.recentEvents || []).filter((item) => item.visitorId === selectedVisitorId)
-    : data.recentEvents || []);
+    ? recentEvents.filter((item) => item.visitorId === selectedVisitorId)
+    : recentEvents);
 }
 
 async function loadDashboard(password) {
@@ -279,7 +300,15 @@ showRecentButton.addEventListener("click", () => {
   selectedVisitorId = "";
   visitorDetailPanel.hidden = true;
   timelineHint.textContent = "默认显示全部访客的最近行为；点击某个访客后会自动筛选。";
-  if (latestSummary) renderEvents(latestSummary.recentEvents || []);
+  if (latestSummary) renderEvents(filterByVisitorTag(latestSummary.recentEvents || []));
+});
+
+visitorTagFilter.addEventListener("change", () => {
+  currentVisitorTagFilter = visitorTagFilter.value || "all";
+  selectedVisitorId = "";
+  visitorDetailPanel.hidden = true;
+  timelineHint.textContent = "已按分享对象筛选最近访问和行为时间线。";
+  if (latestSummary) renderSummary(latestSummary);
 });
 
 showTimelineButton.addEventListener("click", () => {
