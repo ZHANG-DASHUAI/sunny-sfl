@@ -3153,52 +3153,6 @@ function trackModeChange(mode, detail = "") {
   });
 }
 
-function requestPreciseLocation() {
-  const button = $("#allowGeoButton");
-  if (!("geolocation" in navigator)) {
-    setAudioStatus("这个浏览器暂时不支持定位，正常听歌就很好。");
-    sendStatsEvent("geo_permission", {
-      geoAuthorized: false,
-      geoError: "geolocation_not_supported"
-    });
-    return;
-  }
-
-  button.disabled = true;
-  button.textContent = "定位中…";
-  navigator.geolocation.getCurrentPosition(
-    (position) => {
-      const coords = position.coords;
-      sendStatsEvent("geo_permission", {
-        geoAuthorized: true,
-        latitude: coords.latitude,
-        longitude: coords.longitude,
-        accuracy: coords.accuracy,
-        geoTime: new Date(position.timestamp || Date.now()).toISOString(),
-        songId: currentSong?.id || "",
-        songName: currentSong?.title || "",
-        title: currentSong?.title || ""
-      });
-      button.textContent = "已允许定位";
-      setAudioStatus("已经记录授权位置，只在后台给你自己查看。");
-    },
-    (error) => {
-      sendStatsEvent("geo_permission", {
-        geoAuthorized: false,
-        geoError: error.message || error.code || "denied"
-      });
-      button.disabled = false;
-      button.textContent = "允许定位";
-      setAudioStatus("没有记录精准位置，只保留 IP 推测城市。");
-    },
-    {
-      enableHighAccuracy: false,
-      timeout: 10000,
-      maximumAge: 60 * 60 * 1000
-    }
-  );
-}
-
 try {
   const savedPlayMode = localStorage.getItem(PLAY_MODE_STORAGE_KEY);
   if (["sequence", "random", "repeat-one"].includes(savedPlayMode)) {
@@ -5406,7 +5360,6 @@ mainMusicDisc.addEventListener("keydown", (event) => {
   openLyricPageFromDisc();
 });
 $("#cardQqButton").addEventListener("click", openQqMusic);
-$("#allowGeoButton").addEventListener("click", requestPreciseLocation);
 $("#listenQqButton").addEventListener("click", openQqMusic);
 $("#quietListenBtn").addEventListener("click", togglePlayback);
 $("#singPlayButton").addEventListener("click", async (event) => {

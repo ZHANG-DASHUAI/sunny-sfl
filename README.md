@@ -840,13 +840,7 @@ https://你的项目.pages.dev/?to=v1
 
 默认访问位置来自 Cloudflare Pages Functions / Worker 的 `request.cf`，只能表示 IP 推测的大概国家、城市和时区，不保证精准到具体地址。如果 Cloudflare 没有返回位置，后台会显示“未知”。IP 只显示脱敏形式，例如 `1.2.3.xxx`，不会在前台页面显示。访问 `/admin` 后台本身不会写入访问日志。
 
-精准定位不会偷偷获取。只有用户在歌曲详情页主动点击：
-
-```text
-允许定位
-```
-
-并通过浏览器授权后，才会调用 `navigator.geolocation.getCurrentPosition`。如果授权成功，后台会记录 `geoAuthorized`、经纬度、精度和授权时间；如果拒绝，只记录 `geoAuthorized: false` 和错误原因。后台会区分“IP 推测位置”和“用户授权精准位置”。
+前台不提供定位授权按钮，也不会调用浏览器精准定位。后台只保留 Cloudflare IP 归属地记录。
 
 后台地址：
 
@@ -889,7 +883,7 @@ https://你的项目.pages.dev/?to=v1
 - 微信环境打开并且有播放行为：标记为“高度疑似真人”。
 - 其他情况会显示“观察中”。
 
-没有授权时，后台只显示 IP 归属地，不记录精确定位。
+后台只显示 IP 归属地，不记录精确定位。
 
 ### KV 配置步骤
 
