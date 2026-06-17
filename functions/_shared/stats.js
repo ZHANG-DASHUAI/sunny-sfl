@@ -1,6 +1,6 @@
-const LOG_LIMIT = 120;
+const LOG_LIMIT = 160;
 const LOG_TTL_SECONDS = 60 * 60 * 24 * 90;
-const SESSION_LIST_LIMIT = 1000;
+const LIST_LIMIT = 1000;
 
 export function json(data, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -13,7 +13,7 @@ export function json(data, status = 200) {
 }
 
 function normalizeText(value, fallback = "") {
-  return typeof value === "string" ? value.slice(0, 800) : fallback;
+  return typeof value === "string" ? value.slice(0, 1000) : fallback;
 }
 
 function normalizeNumber(value, fallback = 0) {
@@ -44,14 +44,13 @@ function maskIp(ip) {
 
 function getLocationInfo(request) {
   const cf = request.cf || {};
-  const ip = getClientIp(request);
   return {
     country: normalizeText(cf.country),
     city: normalizeText(cf.city),
     region: normalizeText(cf.region),
     timezone: normalizeText(cf.timezone),
     colo: normalizeText(cf.colo),
-    ip: maskIp(ip)
+    ip: maskIp(getClientIp(request))
   };
 }
 
@@ -74,155 +73,294 @@ function normalizeEventType(type) {
 }
 
 function isInteractionType(type) {
-  return ["play", "pause", "song_change", "lyric_open", "mood_click"].includes(type);
+  return [
+    "mood_click",
+    "song_open",
+    "play",
+    "pause",
+    "ended",
+    "seek",
+    "next_song",
+    "prev_song",
+    "mode_change",
+    "lyric_open",
+    "lyric_scroll",
+    "note_open",
+    "note_submit",
+    "geo_permission"
+  ].includes(type);
+}
+
+function isBotUserAgent(userAgent) {
+  return /Headless|bot|crawler|spider|preview|X11; Linux|Linux x86_64|Ubuntu|Debian/i.test(userAgent || "");
 }
 
 function getHumanStatus(session) {
-  const duration = normalizeNumber(session.durationSeconds);
-  const playCount = normalizeNumber(session.playCount);
-  const songChangeCount = normalizeNumber(session.songChangeCount);
-  const interactionCount = normalizeNumber(session.interactionCount);
-  const pageViews = normalizeNumber(session.pageViews);
-  const eventCount = normalizeNumber(session.eventCount);
-
-  if (playCount > 0 || songChangeCount > 0 || duration >= 10 || interactionCount > 0) {
+  if (session.isWechat && Number(session.playCount || 0) > 0) return "高度疑似真人";
+  if (session.isLikelyBot) return "疑似机器人";
+  if (
+    Number(session.playCount || 0) > 0 ||
+    Number(session.clickCount || 0) > 0 ||
+    Number(session.lyricScrollCount || 0) > 0 ||
+    Number(session.durationSeconds || 0) >= 10
+  ) {
     return "疑似真人";
   }
-
-  if (pageViews > 0 && eventCount <= pageViews && duration < 3 && interactionCount === 0) {
+  if (
+    Number(session.durationSeconds || 0) < 3 &&
+    Number(session.clickCount || 0) === 0 &&
+    Number(session.playCount || 0) === 0
+  ) {
     return "疑似机器人/预加载";
   }
-
   return "观察中";
+}
+
+function makeVisitorId(payload) {
+  return normalizeText(payload.visitorId) ||
+    normalizeText(payload.clientId) ||
+    `visitor_${Date.now()}_${crypto.randomUUID()}`;
 }
 
 function makeSessionId(payload) {
   return normalizeText(payload.sessionId) ||
-    normalizeText(payload.clientId) ||
-    `anonymous_${Date.now()}_${crypto.randomUUID()}`;
+    `${makeVisitorId(payload)}_${Date.now()}`;
 }
 
-function makeBaseEvent(request, payload, now) {
+function makeEvent(request, payload, now) {
   const type = normalizeEventType(payload.type);
+  const visitorId = makeVisitorId(payload);
+  const sessionId = makeSessionId(payload);
   return {
     type,
+    visitorId,
+    sessionId,
+    createdAt: now,
     time: now,
-    sessionId: makeSessionId(payload),
     clientId: normalizeText(payload.clientId),
     page: normalizeText(payload.page),
+    pagePath: normalizeText(payload.pagePath || payload.page),
     referrer: normalizeText(payload.referrer),
     language: normalizeText(payload.language),
     screenWidth: normalizeNumber(payload.screenWidth),
     screenHeight: normalizeNumber(payload.screenHeight),
     userAgent: normalizeText(payload.userAgent),
     browser: normalizeText(payload.browser),
-    device: normalizeText(payload.device),
-    isWeChat: normalizeBoolean(payload.isWeChat),
-    ...getLocationInfo(request)
-  };
-}
-
-function withSongFields(event, payload) {
-  return {
-    ...event,
+    os: normalizeText(payload.os),
+    deviceType: normalizeText(payload.deviceType || payload.device),
+    device: normalizeText(payload.deviceType || payload.device),
+    isWechat: normalizeBoolean(payload.isWechat || payload.isWeChat),
+    isWeChat: normalizeBoolean(payload.isWechat || payload.isWeChat),
     songId: normalizeText(payload.songId),
-    title: normalizeText(payload.title),
+    songName: normalizeText(payload.songName || payload.title),
+    title: normalizeText(payload.title || payload.songName),
     mode: normalizeText(payload.mode),
+    playMode: normalizeText(payload.playMode || payload.mode),
     audioField: normalizeText(payload.audioField),
     reason: normalizeText(payload.reason),
-    playMode: normalizeText(payload.playMode),
     fromSongId: normalizeText(payload.fromSongId),
     fromTitle: normalizeText(payload.fromTitle),
     toSongId: normalizeText(payload.toSongId),
     toTitle: normalizeText(payload.toTitle),
-    mood: normalizeText(payload.mood)
+    mood: normalizeText(payload.mood),
+    startedAt: normalizeText(payload.startedAt),
+    endedAt: normalizeText(payload.endedAt),
+    listenedSeconds: normalizeNumber(payload.listenedSeconds),
+    songDuration: normalizeNumber(payload.songDuration),
+    listenedPercent: normalizeNumber(payload.listenedPercent),
+    isFinished: normalizeBoolean(payload.isFinished),
+    isInterrupted: normalizeBoolean(payload.isInterrupted),
+    currentSecond: normalizeNumber(payload.currentSecond),
+    fromSecond: normalizeNumber(payload.fromSecond),
+    toSecond: normalizeNumber(payload.toSecond),
+    geoAuthorized: payload.geoAuthorized === undefined ? undefined : normalizeBoolean(payload.geoAuthorized),
+    latitude: payload.geoAuthorized ? normalizeNumber(payload.latitude) : undefined,
+    longitude: payload.geoAuthorized ? normalizeNumber(payload.longitude) : undefined,
+    accuracy: payload.geoAuthorized ? normalizeNumber(payload.accuracy) : undefined,
+    geoTime: normalizeText(payload.geoTime),
+    geoError: normalizeText(payload.geoError),
+    ...getLocationInfo(request)
   };
 }
 
-async function incrementSongCount(kv, payload, now) {
-  const songId = normalizeText(payload.songId);
+async function incrementSongCount(kv, event) {
+  const songId = normalizeText(event.songId);
   if (!songId) return;
 
   const key = `count:${songId}`;
   const current = await kv.get(key, "json");
   await kv.put(key, JSON.stringify({
     songId,
-    title: normalizeText(payload.title),
+    title: normalizeText(event.songName || event.title),
     count: Number(current?.count || 0) + 1,
-    lastPlayedAt: now
+    lastPlayedAt: event.createdAt
   }));
 }
 
-function updatePlayedSongs(session, event) {
-  const title = event.title || event.toTitle;
-  const songId = event.songId || event.toSongId;
-  if (!songId && !title) return session.playedSongs || [];
+function uniqueRecent(items, next, keyName, limit = 30) {
+  const list = Array.isArray(items) ? items : [];
+  const nextKey = next?.[keyName];
+  return [next, ...list.filter((item) => item?.[keyName] !== nextKey)].filter(Boolean).slice(0, limit);
+}
 
-  const nextItem = {
+function updateSessionSongs(session, event) {
+  const songId = event.songId || event.toSongId;
+  const songName = event.songName || event.title || event.toTitle;
+  if (!songId && !songName) return session.songs || [];
+  return uniqueRecent(session.songs, {
     songId,
-    title,
-    mode: event.mode,
-    time: event.time
-  };
-  const previous = Array.isArray(session.playedSongs) ? session.playedSongs : [];
-  return [nextItem, ...previous].slice(0, 12);
+    songName,
+    mode: event.mode || event.playMode,
+    listenedSeconds: event.listenedSeconds,
+    listenedPercent: event.listenedPercent,
+    isFinished: event.isFinished,
+    time: event.createdAt
+  }, "songId", 20);
+}
+
+function updatePages(session, event) {
+  if (!event.pagePath) return session.pages || [];
+  return uniqueRecent(session.pages, {
+    pagePath: event.pagePath,
+    time: event.createdAt
+  }, "pagePath", 20);
+}
+
+function updateMoods(session, event) {
+  if (!event.mood) return session.moods || [];
+  return uniqueRecent(session.moods, {
+    mood: event.mood,
+    time: event.createdAt
+  }, "mood", 20);
+}
+
+function buildPreciseGeo(current, event) {
+  if (event.geoAuthorized === true) {
+    return {
+      geoAuthorized: true,
+      latitude: event.latitude,
+      longitude: event.longitude,
+      accuracy: event.accuracy,
+      geoTime: event.geoTime || event.createdAt
+    };
+  }
+  if (event.geoAuthorized === false) {
+    return {
+      ...(current || {}),
+      geoAuthorized: false,
+      geoError: event.geoError || "denied"
+    };
+  }
+  return current || {};
 }
 
 async function updateSession(kv, event) {
   const key = `session:${event.sessionId}`;
   const current = await kv.get(key, "json");
-  const firstSeenAt = current?.firstSeenAt || event.time;
-  const first = new Date(firstSeenAt).getTime();
-  const last = new Date(event.time).getTime();
-  const durationSeconds = Number.isFinite(first) && Number.isFinite(last)
-    ? Math.max(0, Math.round((last - first) / 1000))
+  const createdAt = current?.createdAt || current?.firstSeenAt || event.createdAt;
+  const firstTime = new Date(createdAt).getTime();
+  const lastTime = new Date(event.createdAt).getTime();
+  const durationSeconds = Number.isFinite(firstTime) && Number.isFinite(lastTime)
+    ? Math.max(0, Math.round((lastTime - firstTime) / 1000))
     : 0;
 
+  const clickIncrement = isInteractionType(event.type) ? 1 : 0;
   const session = {
     ...(current || {}),
+    visitorId: event.visitorId,
     sessionId: event.sessionId,
-    clientId: event.clientId || current?.clientId || "",
-    firstSeenAt,
-    lastSeenAt: event.time,
+    createdAt,
+    firstSeenAt: createdAt,
+    lastActiveAt: event.createdAt,
+    lastSeenAt: event.createdAt,
     durationSeconds,
-    page: event.page || current?.page || "",
-    lastPage: event.page || current?.lastPage || "",
-    referrer: event.referrer || current?.referrer || "",
-    language: event.language || current?.language || "",
-    screenWidth: event.screenWidth || current?.screenWidth || 0,
-    screenHeight: event.screenHeight || current?.screenHeight || 0,
-    userAgent: event.userAgent || current?.userAgent || "",
-    browser: event.browser || current?.browser || "",
-    device: event.device || current?.device || "",
-    isWeChat: event.isWeChat || Boolean(current?.isWeChat),
+    ip: event.ip || current?.ip || "",
     country: event.country || current?.country || "",
     city: event.city || current?.city || "",
     region: event.region || current?.region || "",
     timezone: event.timezone || current?.timezone || "",
-    colo: event.colo || current?.colo || "",
-    ip: event.ip || current?.ip || "",
+    userAgent: event.userAgent || current?.userAgent || "",
+    deviceType: event.deviceType || current?.deviceType || "",
+    device: event.deviceType || current?.device || "",
+    browser: event.browser || current?.browser || "",
+    os: event.os || current?.os || "",
+    language: event.language || current?.language || "",
+    screenWidth: event.screenWidth || current?.screenWidth || 0,
+    screenHeight: event.screenHeight || current?.screenHeight || 0,
+    referrer: event.referrer || current?.referrer || "",
+    pagePath: event.pagePath || current?.pagePath || "",
+    page: event.page || current?.page || "",
+    isWechat: event.isWechat || Boolean(current?.isWechat),
+    isWeChat: event.isWechat || Boolean(current?.isWeChat),
+    isLikelyBot: Boolean(current?.isLikelyBot) || isBotUserAgent(event.userAgent),
     eventCount: Number(current?.eventCount || 0) + 1,
-    interactionCount: Number(current?.interactionCount || 0) + (isInteractionType(event.type) ? 1 : 0),
+    behaviorCount: Number(current?.behaviorCount || 0) + clickIncrement,
+    clickCount: Number(current?.clickCount || 0) + clickIncrement,
     pageViews: Number(current?.pageViews || 0) + (event.type === "page_view" ? 1 : 0),
+    activePingCount: Number(current?.activePingCount || 0) + (event.type === "active_ping" ? 1 : 0),
     playCount: Number(current?.playCount || 0) + (event.type === "play" ? 1 : 0),
     pauseCount: Number(current?.pauseCount || 0) + (event.type === "pause" ? 1 : 0),
-    songChangeCount: Number(current?.songChangeCount || 0) + (event.type === "song_change" ? 1 : 0),
+    endedCount: Number(current?.endedCount || 0) + (event.type === "ended" ? 1 : 0),
+    seekCount: Number(current?.seekCount || 0) + (event.type === "seek" ? 1 : 0),
     lyricOpenCount: Number(current?.lyricOpenCount || 0) + (event.type === "lyric_open" ? 1 : 0),
+    lyricScrollCount: Number(current?.lyricScrollCount || 0) + (event.type === "lyric_scroll" ? 1 : 0),
     moodClickCount: Number(current?.moodClickCount || 0) + (event.type === "mood_click" ? 1 : 0),
+    noteSubmitCount: Number(current?.noteSubmitCount || 0) + (event.type === "note_submit" ? 1 : 0),
     lastEventType: event.type,
     lastSongId: event.songId || event.toSongId || current?.lastSongId || "",
-    lastSongTitle: event.title || event.toTitle || current?.lastSongTitle || "",
-    lastPlayMode: event.mode || current?.lastPlayMode || "",
-    playedSongs: ["play", "song_change"].includes(event.type)
-      ? updatePlayedSongs(current || {}, event)
-      : (current?.playedSongs || [])
+    lastSongTitle: event.songName || event.title || event.toTitle || current?.lastSongTitle || "",
+    lastPlayMode: event.playMode || event.mode || current?.lastPlayMode || "",
+    pages: updatePages(current || {}, event),
+    moods: updateMoods(current || {}, event),
+    songs: ["song_open", "play", "pause", "ended", "song_change", "seek"].includes(event.type)
+      ? updateSessionSongs(current || {}, event)
+      : (current?.songs || []),
+    preciseGeo: buildPreciseGeo(current?.preciseGeo, event)
   };
 
   session.humanStatus = getHumanStatus(session);
-  await kv.put(key, JSON.stringify(session), {
-    expirationTtl: LOG_TTL_SECONDS
-  });
+  await kv.put(key, JSON.stringify(session), { expirationTtl: LOG_TTL_SECONDS });
   return session;
+}
+
+async function updateVisitor(kv, session) {
+  const key = `visitor:${session.visitorId}`;
+  const current = await kv.get(key, "json");
+  const visitor = {
+    ...(current || {}),
+    visitorId: session.visitorId,
+    createdAt: current?.createdAt || session.createdAt,
+    lastActiveAt: session.lastActiveAt,
+    sessionCount: Math.max(Number(current?.sessionCount || 0), 0),
+    ip: session.ip,
+    country: session.country,
+    city: session.city,
+    timezone: session.timezone,
+    userAgent: session.userAgent,
+    deviceType: session.deviceType,
+    browser: session.browser,
+    os: session.os,
+    language: session.language,
+    isWechat: session.isWechat,
+    isLikelyBot: session.isLikelyBot,
+    humanStatus: session.humanStatus,
+    totalPlayCount: Number(current?.totalPlayCount || 0) + (session.lastEventType === "play" ? 1 : 0),
+    totalBehaviorCount: Number(current?.totalBehaviorCount || 0) + (isInteractionType(session.lastEventType) ? 1 : 0),
+    lastSongTitle: session.lastSongTitle,
+    lastSongId: session.lastSongId,
+    sessions: uniqueRecent(current?.sessions || [], {
+      sessionId: session.sessionId,
+      createdAt: session.createdAt,
+      lastActiveAt: session.lastActiveAt,
+      durationSeconds: session.durationSeconds,
+      city: session.city,
+      country: session.country,
+      deviceType: session.deviceType
+    }, "sessionId", 20),
+    preciseGeo: session.preciseGeo || current?.preciseGeo || {}
+  };
+  visitor.sessionCount = visitor.sessions.length;
+  await kv.put(key, JSON.stringify(visitor), { expirationTtl: LOG_TTL_SECONDS });
 }
 
 export async function recordStats(request, kv) {
@@ -234,57 +372,65 @@ export async function recordStats(request, kv) {
   }
 
   const now = new Date().toISOString();
-  const event = withSongFields(makeBaseEvent(request, payload, now), payload);
-
+  const event = makeEvent(request, payload, now);
   if (!event.type) return json({ ok: true, ignored: true });
-  if (event.page.startsWith("/admin")) return json({ ok: true, ignored: "admin" });
+  if (event.pagePath.startsWith("/admin") || event.page.startsWith("/admin")) {
+    return json({ ok: true, ignored: "admin" });
+  }
 
   await kv.put("lastAccess", JSON.stringify(event));
   await putLog(kv, "event", event);
 
-  if (event.type === "page_view") {
-    await putLog(kv, "visit", event);
-  } else if (event.type === "play") {
+  if (event.type === "page_view") await putLog(kv, "visit", event);
+  if (event.type === "play") {
     await putLog(kv, "play", event);
-    await incrementSongCount(kv, payload, now);
-  } else if (event.type === "song_change") {
+    await incrementSongCount(kv, event);
+  }
+  if (event.type === "song_change" || event.type === "next_song" || event.type === "prev_song") {
     await putLog(kv, "switch", event);
   }
 
   const session = await updateSession(kv, event);
+  await updateVisitor(kv, session);
   return json({ ok: true, sessionStatus: session.humanStatus });
 }
 
-async function listLogs(kv, prefix, limit = LOG_LIMIT) {
-  const listed = await kv.list({ prefix: `${prefix}:`, limit });
+async function listByPrefix(kv, prefix, limit = LIST_LIMIT) {
+  const listed = await kv.list({ prefix, limit });
   const rows = await Promise.all(listed.keys.map((item) => kv.get(item.name, "json")));
-  return rows.filter(Boolean).sort((a, b) => String(b.time).localeCompare(String(a.time)));
+  return rows.filter(Boolean);
+}
+
+async function listLogs(kv, prefix, limit = LOG_LIMIT) {
+  return (await listByPrefix(kv, `${prefix}:`, limit))
+    .sort((a, b) => String(b.time || b.createdAt).localeCompare(String(a.time || a.createdAt)));
 }
 
 async function listSessions(kv) {
-  const listed = await kv.list({ prefix: "session:", limit: SESSION_LIST_LIMIT });
-  const rows = await Promise.all(listed.keys.map((item) => kv.get(item.name, "json")));
-  return rows
-    .filter(Boolean)
-    .sort((a, b) => String(b.lastSeenAt).localeCompare(String(a.lastSeenAt)))
-    .slice(0, 80);
+  return (await listByPrefix(kv, "session:", LIST_LIMIT))
+    .sort((a, b) => String(b.lastActiveAt || b.lastSeenAt).localeCompare(String(a.lastActiveAt || a.lastSeenAt)))
+    .slice(0, 120);
+}
+
+async function listVisitors(kv) {
+  return (await listByPrefix(kv, "visitor:", LIST_LIMIT))
+    .sort((a, b) => String(b.lastActiveAt).localeCompare(String(a.lastActiveAt)))
+    .slice(0, 120);
 }
 
 async function listRanking(kv) {
-  const listed = await kv.list({ prefix: "count:", limit: 1000 });
-  const rows = await Promise.all(listed.keys.map((item) => kv.get(item.name, "json")));
-  return rows
-    .filter(Boolean)
+  return (await listByPrefix(kv, "count:", LIST_LIMIT))
     .sort((a, b) => Number(b.count || 0) - Number(a.count || 0))
     .slice(0, 50);
 }
 
 export async function getAdminSummary(kv) {
-  const [recentSessions, recentEvents, recentPlays, recentSwitches, ranking, lastAccess] = await Promise.all([
+  const [recentSessions, recentVisitors, recentEvents, recentPlays, recentSwitches, ranking, lastAccess] = await Promise.all([
     listSessions(kv),
-    listLogs(kv, "event", 160),
-    listLogs(kv, "play", 120),
-    listLogs(kv, "switch", 120),
+    listVisitors(kv),
+    listLogs(kv, "event", 260),
+    listLogs(kv, "play", 160),
+    listLogs(kv, "switch", 160),
     listRanking(kv),
     kv.get("lastAccess", "json")
   ]);
@@ -292,11 +438,28 @@ export async function getAdminSummary(kv) {
   return {
     ok: true,
     lastAccess,
-    recentSessions: recentSessions.slice(0, 40),
-    recentEvents: recentEvents.slice(0, 80),
-    recentVisits: recentSessions.slice(0, 40),
-    recentPlays: recentPlays.slice(0, 50),
-    recentSwitches: recentSwitches.slice(0, 50),
+    recentVisitors: recentVisitors.slice(0, 80),
+    recentSessions: recentSessions.slice(0, 80),
+    recentVisits: recentSessions.slice(0, 80),
+    recentEvents: recentEvents.slice(0, 160),
+    recentPlays: recentPlays.slice(0, 80),
+    recentSwitches: recentSwitches.slice(0, 80),
     ranking
   };
+}
+
+export async function clearStats(kv) {
+  const prefixes = ["event:", "visit:", "play:", "switch:", "session:", "visitor:", "count:"];
+  let deleted = 0;
+  for (const prefix of prefixes) {
+    let cursor;
+    do {
+      const listed = await kv.list({ prefix, limit: 1000, cursor });
+      await Promise.all(listed.keys.map((item) => kv.delete(item.name)));
+      deleted += listed.keys.length;
+      cursor = listed.list_complete ? undefined : listed.cursor;
+    } while (cursor);
+  }
+  await kv.delete("lastAccess");
+  return { ok: true, deleted };
 }

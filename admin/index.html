@@ -170,6 +170,14 @@
       color: #835f19;
     }
 
+    .session-row {
+      cursor: pointer;
+    }
+
+    .session-row:hover {
+      background: rgba(95, 143, 201, 0.08);
+    }
+
     .status {
       min-height: 22px;
       margin-top: 10px;
@@ -220,13 +228,17 @@
           <p class="muted">位置来自 Cloudflare IP 归属地，只显示大概国家/城市和脱敏 IP，不记录精确定位。</p>
         </div>
         <div>
+          <button id="showRecentButton" type="button" class="secondary">最近访问</button>
+          <button id="showTimelineButton" type="button" class="secondary">行为时间线</button>
+          <button id="clearStatsButton" type="button" class="secondary">清空访问记录</button>
           <button id="refreshButton" type="button">刷新</button>
           <button id="logoutButton" type="button" class="secondary">退出</button>
         </div>
       </div>
 
-      <section class="admin-card">
+      <section class="admin-card admin-panel" id="recentPanel">
         <h2>最近访客 Session</h2>
+        <p class="muted">点击某一行可以查看这个访客的所有访问记录和行为时间线。</p>
         <div class="table-wrap">
           <table class="wide-table">
             <thead>
@@ -243,6 +255,29 @@
               </tr>
             </thead>
             <tbody id="sessionsBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="admin-card admin-panel" id="visitorDetailPanel" hidden>
+        <h2>访客详情</h2>
+        <p class="muted" id="visitorDetailHint">点击最近访问中的访客后，这里会显示她的访问记录。</p>
+        <div class="table-wrap">
+          <table class="wide-table">
+            <thead>
+              <tr>
+                <th>开始时间</th>
+                <th>最后活跃</th>
+                <th>停留时长</th>
+                <th>IP推测位置</th>
+                <th>设备</th>
+                <th>看过页面</th>
+                <th>心情分类</th>
+                <th>听过歌曲</th>
+                <th>精准定位</th>
+              </tr>
+            </thead>
+            <tbody id="visitorSessionsBody"></tbody>
           </table>
         </div>
       </section>
@@ -285,7 +320,7 @@
         </section>
       </div>
 
-      <section class="admin-card">
+      <section class="admin-card admin-panel">
         <h2>最近播放</h2>
         <div class="table-wrap">
           <table>
@@ -304,8 +339,9 @@
         </div>
       </section>
 
-      <section class="admin-card">
-        <h2>最近行为事件</h2>
+      <section class="admin-card admin-panel" id="timelinePanel">
+        <h2>行为时间线</h2>
+        <p class="muted" id="timelineHint">默认显示全部访客的最近行为；点击某个访客后会自动筛选。</p>
         <div class="table-wrap">
           <table class="wide-table">
             <thead>
